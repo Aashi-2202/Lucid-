@@ -14,7 +14,8 @@ google-auth>=2.29.0
 google-api-python-client>=2.130.0
 
 # PDF Processing
-PyMuPDF>=1.24.0
+# Keep the tested text-extraction API without the layout/ML bundle in 2.x.
+PyMuPDF>=1.28.2,<2
 
 # Semantic Retrieval (ONNX backend)
 sentence-transformers>=3.0.0
