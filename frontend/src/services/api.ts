@@ -1,6 +1,6 @@
 import { getToken } from "./auth";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 /**
  * Typed fetch wrapper for backend API calls.
@@ -29,13 +29,14 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
+    const body: unknown = await res.json().catch(() => null);
+    const detail = body && typeof body === "object" && "detail" in body ? body.detail : null;
+    throw new Error(typeof detail === "string" ? detail : `Request failed (${res.status}). Please try again.`);
   }
 
   return res.json() as Promise<T>;
 }
 
 export function healthCheck() {
-  return apiFetch<{ status: string; version: string }>("/api/health");
+  return apiFetch<{ status: string; version: string }>("/health");
 }

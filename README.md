@@ -34,6 +34,23 @@ npm run dev
 
 Frontend runs on `http://localhost:5173`, backend on `http://localhost:8000`.
 
+### Google sign-in configuration
+
+Copy each app's `.env.example` to `.env`. Set `GOOGLE_CLIENT_ID` in the
+backend and `VITE_GOOGLE_CLIENT_ID` in the frontend to the same Google OAuth
+**Web application** client ID. Register `http://localhost:5173` as an authorized
+JavaScript origin. This button uses a JavaScript callback, so it does not need
+a redirect URI. Keep `VITE_API_URL=/api` locally so Vite forwards requests to
+the backend. Restart both servers after changing environment variables.
+
+New accounts require administrator approval by default. To approve selected
+first-time users after Google verifies their email, configure the backend's
+`APPROVED_RECRUITER_EMAILS` as a JSON array, such as `["recruiter@example.com"]`.
+This does not reapprove previously disabled accounts. Keep the actual email
+list, database URL, service-account key, and JWT secret in ignored local
+configuration. A client ID can be public; a client secret is not used by this
+sign-in flow. Test real Google sign-in in your regular browser.
+
 ## Tech Stack
 
 | Component | Technology |

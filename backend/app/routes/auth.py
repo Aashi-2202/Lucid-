@@ -1,11 +1,14 @@
 """Authentication routes — Google Sign-In and session management."""
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import AuthError, create_session_token, verify_google_token
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_recruiter
 from app.models.recruiter import Recruiter
@@ -47,13 +50,13 @@ async def sign_in_with_google(
     """
     # 1. Verify the Google token
     try:
-        id_info = verify_google_token(body.credential)
+        id_info = await asyncio.to_thread(verify_google_token, body.credential)
     except AuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
     google_id = id_info["sub"]
     email = id_info.get("email", "")
-    name = id_info.get("name", "")
+    name = id_info.get("name") or email
     picture = id_info.get("picture")
 
     # 2. Find or create the recruiter
@@ -63,13 +66,14 @@ async def sign_in_with_google(
     recruiter = result.scalar_one_or_none()
 
     if recruiter is None:
-        # First-time sign-in — create account (unapproved by default)
+        # Only explicitly configured, Google-verified emails can bypass approval.
+        allowed_emails = {value.strip().casefold() for value in settings.approved_recruiter_emails}
         recruiter = Recruiter(
             google_id=google_id,
             email=email,
             name=name,
             picture=picture,
-            approved=False,
+            approved=email.strip().casefold() in allowed_emails,
         )
         db.add(recruiter)
         await db.commit()
