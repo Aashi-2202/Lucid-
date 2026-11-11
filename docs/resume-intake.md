@@ -124,6 +124,10 @@ real PyMuPDF parser and Google's chunk downloader without needing Google keys,
 Neon, a model download, or real candidate data. Live Drive access, real resume
 quality, hosted memory usage, and database recovery are not covered here.
 
+A separate [live Drive/Neon run](live-verification-2026-11-12.md) verified intake
+and completed-file checkpoint recovery on 12 November 2026. It does not establish
+parser or exclusion accuracy against a manually labelled resume dataset.
+
 ## Next integration
 
 The authenticated start/progress API, saved inputs, durable queue, and restart

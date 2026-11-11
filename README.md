@@ -72,4 +72,9 @@ python -W error -m unittest discover -s tests -v
 
 Tests use a temporary on-disk SQLite database, generated PDFs, mocked Drive
 transport, and real isolated child processes. Google credentials, Neon, and model
-downloads are not required. Live PostgreSQL/Neon verification is still pending.
+downloads are not required.
+
+Live Drive/Neon intake verification completed on 12 November 2026: 5 PDFs
+processed, 4 ready for analysis, 1 flagged as requiring OCR, with saved progress
+recovered in a fresh worker process. See the [verification report](docs/live-verification-2026-11-12.md)
+for what was exercised and what remains pending, including Google OAuth sign-in.

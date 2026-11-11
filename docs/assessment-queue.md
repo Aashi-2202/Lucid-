@@ -142,7 +142,9 @@ timeouts, oversized output, and cancellation under both Windows event-loop types
 PDF/Drive tests use synthetic files and mocked transport; a real child is also
 tested with deliberately missing credentials.
 
-Live Neon/PostgreSQL concurrency, live Drive access, and deployed memory/cold-start
-behavior remain unverified. The next integration is frontend start/progress
-controls, followed by evidence classification, semantic relevance, weighted
-scoring, and final ranked results.
+Live Drive access, Neon intake persistence, and recovery after a completed-file
+checkpoint were verified on 12 November 2026; see the [live report](live-verification-2026-11-12.md).
+Competing PostgreSQL workers, interruption during a file, Google OAuth sign-in,
+and deployed memory/cold-start behavior remain unverified. The next integration
+is frontend start/progress controls, followed by evidence classification,
+semantic relevance, weighted scoring, and final ranked results.
