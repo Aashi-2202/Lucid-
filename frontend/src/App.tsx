@@ -1,32 +1,44 @@
+import { useState } from "react";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
 import SignInPage from "./pages/SignInPage";
+import JobsPage from "./pages/JobsPage";
+import JobSetupPage from "./pages/JobSetupPage";
+
+type Page =
+  | { view: "jobs" }
+  | { view: "new-job" }
+  | { view: "edit-job"; jobId: number };
 
 function AppContent() {
-  const { signedIn, recruiter } = useAuth();
+  const { signedIn } = useAuth();
+  const [page, setPage] = useState<Page>({ view: "jobs" });
 
   if (!signedIn) {
     return <SignInPage />;
   }
 
-  // Signed in — show the main app (Jobs page will go here)
-  return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #eee",
-          paddingBottom: "1rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Lucid</h1>
-        <span>{recruiter?.name}</span>
-      </header>
-      <p>Jobs dashboard coming next…</p>
-    </div>
-  );
+  switch (page.view) {
+    case "jobs":
+      return (
+        <JobsPage
+          onNewJob={() => setPage({ view: "new-job" })}
+          onSelectJob={(id) => setPage({ view: "edit-job", jobId: id })}
+        />
+      );
+    case "new-job":
+      return (
+        <JobSetupPage
+          onBack={() => setPage({ view: "jobs" })}
+        />
+      );
+    case "edit-job":
+      return (
+        <JobSetupPage
+          jobId={page.jobId}
+          onBack={() => setPage({ view: "jobs" })}
+        />
+      );
+  }
 }
 
 function App() {

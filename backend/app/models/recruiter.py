@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import String, Boolean, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -25,3 +25,6 @@ class Recruiter(Base):
     last_login: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    # Relationships
+    jobs: Mapped[list["Job"]] = relationship(back_populates="recruiter")  # noqa: F821

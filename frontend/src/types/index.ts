@@ -10,7 +10,7 @@ export interface Recruiter {
 }
 
 export interface JobDraft {
-  id: string;
+  id: number;
   title: string;
   description: string;
   folder_link: string;
@@ -19,13 +19,14 @@ export interface JobDraft {
 }
 
 export interface SkillRequirement {
+  id?: number;
   skill: string;
-  description: string;
+  description: string | null;
   mandatory: boolean;
   importance: number; // 1-5
   required_evidence_level: number; // 1-5
   assessment_method: "resume" | "interview";
-  aliases: string[];
+  aliases: string[] | null;
 }
 
 export interface AssessmentProgress {
