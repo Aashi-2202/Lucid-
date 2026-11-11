@@ -22,6 +22,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate      # Windows
 pip install -r requirements.txt
+python -m app.services.embeddings  # Download and check the pinned ONNX model once
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -80,10 +81,18 @@ workflow with the current stack and distinguish completed features from pending 
 - Persistent assessment queue, frozen job/skill inputs, sequential intake,
   per-file checkpoints, restart recovery, and authenticated progress APIs.
 
-Assessments can now be initiated and inspected through the API, including
-Swagger at `/docs`. The frontend assessment controls, evidence analysis, and
-ranking are the next integration steps. See [queue/API details](docs/assessment-queue.md)
-and [resume intake details](docs/resume-intake.md) for usage and verification.
+- Initiate assessments from the saved job, recheck folder access, follow live
+  progress, reopen previous runs, and view separate assessed/excluded/failed lists.
+- Section-based evidence categories, pinned Sentence Transformer ONNX passage
+  retrieval, bucketed relevance, weighted scores, tied ranks, source passages,
+  and CSV export. Interview requirements remain unscored.
+
+After saving job settings, scroll below the folder section and select
+**Initiate assessment**. The local backend needs `ASSESSMENT_WORKER_ENABLED=true`
+and the model cache prepared with the command above. No model-host API key is
+required; resume inference runs locally. The `.model-cache` directory is ignored
+by Git. Keep one backend process initially. See [assessment details](docs/assessment-queue.md)
+and [resume intake details](docs/resume-intake.md).
 
 ## Backend tests
 
@@ -106,4 +115,8 @@ processed, 4 ready for analysis, 1 flagged as requiring OCR, with saved progress
 recovered in a fresh worker process. See the [verification report](docs/live-verification-2026-11-12.md)
 for what was exercised and what remains pending. Local Google sign-in was also
 verified: the user reached the Jobs page, and the approved account was confirmed
-in Neon. Hosted sign-in and frontend assessment controls remain unverified.
+in Neon. A subsequent live run completed ONNX evidence analysis on 4 of 5 PDFs and
+verified saved scores and CSV export. The user also initiated an assessment
+through the real browser: 1 assessed, 3 excluded, 1 failed. Hosted behavior,
+manual parser corrections, and calibration on a labelled real-resume dataset
+remain outstanding.

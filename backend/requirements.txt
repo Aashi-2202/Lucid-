@@ -20,6 +20,9 @@ PyMuPDF>=1.28.2,<2
 # Semantic Retrieval (ONNX backend)
 sentence-transformers>=3.0.0
 onnxruntime>=1.18.0
+tokenizers>=0.21,<1
+huggingface-hub>=0.30,<2
+numpy>=1.26
 
 # Auth
 PyJWT>=2.8.0

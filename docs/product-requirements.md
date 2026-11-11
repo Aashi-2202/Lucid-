@@ -89,9 +89,10 @@ The Render backend should wake on use with bounded readiness checks and clear
 errors, without scheduled keep-alives. Measure memory and cold-start behavior on
 its actual host. Deployment limits remain to be verified.
 
-Google sign-in and live Drive/Neon intake are verified locally. The present UI
-work covers requirement configuration and persistence. Assessment controls,
-structured evidence analysis, semantic scoring, final rankings, corrections and
-export are separate outstanding delivery work. The detailed explainable dashboard,
+Google sign-in and live Drive/Neon intake are verified locally. The UI now covers requirement configuration, initiation, saved history, progress,
+ranked results, source-linked evidence and CSV export. Basic section extraction,
+ONNX passage matching, evidence categories and weighted scoring are implemented.
+Manual corrections/reassessment, broader parser coverage, and model/rubric
+calibration remain outstanding. The detailed explainable dashboard,
 continuous folder monitoring and OCR remain deferred. Do not present intake-only
 results as completed candidate analysis or ranking.

@@ -42,7 +42,17 @@ def execute(request: WorkerRequest):
         limits=snapshot.pdf_limits,
     )
     if isinstance(outcome, ReadyForAnalysis):
-        return Ready(document=asdict(outcome.document))
+        document = asdict(outcome.document)
+        if snapshot.analysis_version:
+            try:
+                from app.services.analysis import analyse
+                from app.schemas.assessments import ResumeDocument
+                document["analysis"] = analyse(ResumeDocument.model_validate(document), snapshot).model_dump()
+            except ResumeProcessingError as exc:
+                return Failed(code=exc.code, message=exc.message)
+            except Exception:
+                return Failed(code="analysis_failed", message="Evidence analysis could not finish. Check assessment service readiness and retry.")
+        return Ready(document=document)
     if isinstance(outcome, ExcludedResume):
         return Excluded(missing_skills=list(outcome.missing_skills))
     return Failed(code=outcome.code, message=outcome.message)

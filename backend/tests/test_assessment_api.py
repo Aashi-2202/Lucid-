@@ -106,7 +106,7 @@ class AssessmentApiTests(QueueTestCase):
         claim = await claim_next(self.sessions)
         await save_outcome(self.sessions, claim, Failed(code="invalid_pdf", message="Invalid PDF."))
         done = (await self.client.get(f"/assessments/{run_id}", headers=self.headers)).json()
-        self.assertEqual(done["status"], "screened")
+        self.assertEqual(done["status"], "completed")
         self.assertEqual(done["failed"], 1)
         self.assertEqual(done["processed_files"], 2)
         failed_files = (await self.client.get(f"/assessments/{run_id}/files?status=failed", headers=self.headers)).json()
@@ -140,3 +140,61 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual(repeated["id"], first["id"])
         self.assertEqual(repeated["status"], "failed")
         self.assertEqual((await self.start()).status_code, 202)
+
+    async def test_completed_analysis_results_preserve_ties_and_scope(self):
+        from app.schemas.assessments import Ready
+        from app.services.analysis import analyse
+        from test_analysis import document, exact_encoder, snapshot
+        run_id=(await self.start()).json()["id"]
+        claim=await claim_next(self.sessions)
+        await save_outcome(self.sessions,claim,discovery("a","b","c"))
+        for _ in range(2):
+            claim=await claim_next(self.sessions)
+            doc=document("Projects\nBuilt Python services.")
+            doc=doc.model_copy(update={"analysis":analyse(doc,snapshot(),encoder=exact_encoder)})
+            await save_outcome(self.sessions,claim,Ready(document=doc))
+        claim=await claim_next(self.sessions)
+        await save_outcome(self.sessions,claim,Excluded(missing_skills=["Python"]))
+        progress=(await self.client.get(f"/assessments/{run_id}",headers=self.headers)).json()
+        self.assertEqual(progress["status"],"completed")
+        self.assertEqual(progress["assessed"],2)
+        result=await self.client.get(f"/assessments/{run_id}/results",headers=self.headers)
+        self.assertEqual(result.status_code,200)
+        rows=result.json()["rows"]
+        self.assertFalse(result.json()["provisional"])
+        self.assertEqual([row["rank"] for row in rows],[1,1])
+        self.assertEqual([row["score"] for row in rows],[75,75])
+        other=await self.client.get(f"/assessments/{run_id}/results",headers=self.auth(2))
+        self.assertEqual(other.status_code,404)
+        export=await self.client.get(f"/assessments/{run_id}/export",headers=self.headers)
+        self.assertEqual(export.status_code,200)
+        self.assertEqual(len(export.text.splitlines()),3)
+        detail=(await self.client.get(f"/assessments/{run_id}/files/{rows[0]['file_id']}",headers=self.headers)).json()
+        self.assertEqual(detail["document"]["analysis"]["skills"][0]["evidence_level"],3)
+
+    async def test_active_export_is_blocked_and_rankings_are_provisional(self):
+        run_id=(await self.start()).json()["id"]
+        response=await self.client.get(f"/assessments/{run_id}/export",headers=self.headers)
+        self.assertEqual(response.status_code,409)
+        result=await self.client.get(f"/assessments/{run_id}/results",headers=self.headers)
+        self.assertTrue(result.json()["provisional"])
+
+    async def test_csv_escapes_formula_filenames(self):
+        from app.routes.assessments import csv_cell
+        self.assertEqual(csv_cell("=HYPERLINK(test)"),"'=HYPERLINK(test)")
+        self.assertEqual(csv_cell("   +test"),"'   +test")
+        self.assertEqual(csv_cell("resume.pdf"),"resume.pdf")
+
+    async def test_old_intake_run_does_not_claim_ranked_results(self):
+        run_id=await self.enqueue()
+        claim=await claim_next(self.sessions)
+        await save_outcome(self.sessions,claim,discovery("a"))
+        claim=await claim_next(self.sessions)
+        from app.schemas.assessments import Ready
+        from test_analysis import document
+        await save_outcome(self.sessions,claim,Ready(document=document("Skills\nPython")))
+        run=(await self.client.get(f"/assessments/{run_id}",headers=self.headers)).json()
+        self.assertEqual(run["status"],"screened")
+        self.assertEqual(run["assessed"],0)
+        results=(await self.client.get(f"/assessments/{run_id}/results",headers=self.headers)).json()
+        self.assertEqual(results["rows"],[])

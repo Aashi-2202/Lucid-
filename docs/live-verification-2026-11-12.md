@@ -41,9 +41,10 @@ resumed in a new process. Abrupt interruption during a file, expired-lease fenci
 and competing PostgreSQL workers were not exercised in this live run; those
 behaviors currently have local integration-test coverage.
 
-Frontend assessment controls, evidence classification, semantic relevance,
-weighted scoring, ranking, hosted memory use, and Render
-cold-start behavior remain pending or unverified.
+At the end of this initial intake check, frontend assessment controls, evidence
+classification, semantic relevance, weighted scoring and ranking were pending.
+Their subsequent implementation and verification are recorded below. Hosted
+memory use and Render cold-start behavior remain unverified.
 
 ## Local Google sign-in verification
 
@@ -64,3 +65,33 @@ treated as errors, and the frontend TypeScript/production build passed.
 
 Credentials, folder URLs, source filenames, candidate details, and extracted
 resume text are deliberately omitted from this public repository report.
+
+## Full assessment verification
+
+A subsequent local run exercised the running HTTP API, real Drive downloads,
+Neon development storage, and the pinned Sentence Transformer ONNX model. A
+technical verification job had two optional resume-assessed requirements and an
+optional interview-assessed requirement; it did not make hiring decisions.
+
+All 5 PDFs reached terminal outcomes in approximately 52 seconds: 4 were analysed
+and scored, and 1 was flagged `ocr_required`. The checks confirmed identical IDs
+on repeated start requests, saved analysis with the pinned model revision,
+interview requirements omitted from numerical scoring, and downloadable final
+CSV rows. Its technical verification identity was disabled afterward. Original
+Drive files were unchanged.
+
+The user then initiated their own configured job through Chrome and confirmed
+that the assessment page opened. A separate read of Neon confirmed 5 processed:
+1 analysed, 3 mandatory-skill exclusions, and 1 processing failure. These are
+observed operational outcomes, not manually validated screening decisions.
+
+Validation for the complete assessment changes: 121 backend tests passed with
+warnings treated as errors; frontend tests and the production build passed.
+Source/evidence categories and relevance thresholds remain initial heuristics.
+Manual parser correction/reassessment and hosted deployment verification remain
+outstanding.
+
+Browser checks used synthetic UI fixtures for running/completed/all-excluded
+states, source details, paused retries, and mobile/desktop layout. The browser
+download permission gate did not grant access, so the final browser download
+was not completed or retried. CSV generation was verified through the live API.

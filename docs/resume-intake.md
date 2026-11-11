@@ -131,5 +131,7 @@ parser or exclusion accuracy against a manually labelled resume dataset.
 ## Next integration
 
 The authenticated start/progress API, saved inputs, durable queue, and restart
-recovery are implemented. Next, connect frontend assessment controls and add
-structured evidence analysis, bucketed relevance, weighted scoring, and rankings.
+recovery are implemented. Frontend start/progress controls, section-based evidence
+analysis, bucketed ONNX relevance, weighted scoring, rankings and CSV export are
+now connected. See [assessment details](assessment-queue.md) for semantics and
+remaining evaluation limits.

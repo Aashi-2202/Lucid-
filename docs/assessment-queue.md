@@ -1,150 +1,177 @@
-# Persistent intake assessments
+# Assessment processing and results
 
-The backend can start an assessment, discover its Google Drive PDFs, process them
-one at a time, checkpoint each outcome, and resume unfinished work after a
-restart. This completes intake and mandatory-skill screening. It does not yet
-assign evidence levels, run the embedding model, calculate scores, or rank people.
+Saved drafts can now initiate complete local assessments from the browser. The
+same flow is available through the authenticated API. A run reads the authorised
+Drive folder, processes PDFs sequentially, applies the mandatory presence gate,
+analyses passing resumes, saves source-linked results, and generates a ranking.
 
-## Start and inspect a run
+## Local preparation
 
-Use an approved recruiter's Bearer session token. The endpoints are also available
-through Swagger at `/docs`.
-
-```http
-POST /jobs/1/assessments
-Authorization: Bearer <session-token>
-Content-Type: application/json
-
-{"idempotency_key":"773f9bde-8ec7-49b7-91db-d32e6bda8617"}
-```
-
-The response is `202 Accepted`, with an assessment ID, progress fields, and a
-`Location: /assessments/<id>` header. The request does database work only; Drive
-discovery starts asynchronously. At first, `phase` is `discovery` and
-`total_files` is `null`.
-
-Generate a fresh UUID for each intended run. Reuse the same key when retrying a
-request: the original assessment is returned, including after it finishes. Reusing
-that key for another job is a conflict. At most one assessment is active across
-the deployment; a distinct start while it is busy returns `409`.
-
-| Endpoint | Result |
-| --- | --- |
-| `GET /jobs/{job_id}/assessments` | Recent runs for the owning recruiter; `limit` and `offset` pagination |
-| `GET /assessments/{id}` | Phase, counts, current filename, and any run-level error |
-| `GET /assessments/{id}/snapshot` | Saved job, requirements, limits, and versioned policy inputs |
-| `GET /assessments/{id}/files` | File outcomes in frozen queue order; `limit`, `offset`, optional `status` |
-| `GET /assessments/{id}/files/{file_id}` | One file's outcome, Drive ID/version, and extracted text only if ready |
-
-All endpoints verify account approval and ownership. Other recruiters receive
-`404` for an assessment or job they do not own. File details are also scoped to
-the assessment, so a file ID from another run cannot cross that boundary.
-
-Poll progress every few seconds. The counts distinguish `ready_for_analysis`,
-`excluded`, and `failed`; their sum is `processed_files`. File lists omit extracted
-text. The detail endpoint returns no extracted document for an exclusion/failure.
-
-## States and saved inputs
-
-Runs move through `queued` → `running` → `screened`, or terminal `failed` for a
-run-level problem such as an inaccessible/empty source folder. `phase` distinguishes
-discovery from screening while a run is active.
-
-`screened` means intake finished, including any per-file failures. It does not
-mean all files succeeded or that ranking has been completed. Individual files
-move from `pending` to exactly one of `ready_for_analysis`, `excluded`, or `failed`.
-An individual failure does not stop the remaining files.
-
-At initiation, a single database query captures the job and skill settings. The
-saved snapshot includes descriptions, aliases, mandatory flags, importance,
-required evidence levels, assessment methods, intake/gate schema versions, PDF
-limits, per-file timeout, file cap, embedding model name, and relevance thresholds.
-The latter two are reserved inputs for the future analysis stage, not evidence
-that model inference has run. Draft edits do not alter an existing run.
-
-The worker validates access again during discovery. It freezes the direct,
-non-trashed PDF list at **discovery time**, rather than at the instant the POST
-arrives. Files added afterward belong to a later run. Queue order is stable by
-case-folded filename and Drive ID. Every entry saves its ID, name, version, size,
-and modification time when available. Downloads reject changed versions rather
-than silently substituting newer contents.
-
-## Persistence, sequential execution, and recovery
-
-`assessments` and `assessment_files` are additive tables created by the existing
-startup table-creation step. Existing PostgreSQL skill alias storage stays an
-array; its SQLite JSON variant exists for local integration tests. The application
-still needs an external PostgreSQL database such as Neon for deployed persistence.
-
-A unique active-slot constraint prevents two active runs, even when start requests
-race. Workers acquire the active run using one conditional `UPDATE ... RETURNING`.
-Each claim gets a random token and an expiry based on database time. The lease is
-the saved per-file timeout plus 30 seconds. No database transaction stays open
-while Drive/PDF work runs.
-
-A result is committed only if its claim token still matches and its lease has
-not expired. The file outcome and any final run-state transition commit together.
-An expired/late worker cannot overwrite a replacement's result. Completed files
-are never selected again. Unfinished work may be executed again after a crash;
-this is at-least-once processing with one accepted checkpoint, not exactly-once
-execution of external reads.
-
-Clean shutdown kills/reaps the current child and releases its lease. After an
-unclean interruption, a new worker waits for the saved lease to expire, then
-retries the unfinished operation. With defaults, that wait is at most roughly
-90 seconds plus a poll interval after the last claim. Database outages can extend
-recovery. An abrupt parent-process kill can leave an orphaned read-only child
-until the host cleans up its process group; fencing still prevents stale writes.
-
-## Isolation and settings
-
-Each folder-discovery/file operation runs in a separate child process. The parent
-enforces a timeout after child creation, kills/reaps an overlong operation, and
-records `processing_timeout`. Input/output JSON is capped at 4 MiB. Worker stderr
-is discarded and queue errors do not log SQL parameters or resume contents.
-
-The child uses the backend's working directory and credentials configuration.
-On Windows selector loops, subprocess work uses a dedicated Proactor loop while
-preserving the server's own loop policy. Python 3.11 or newer is required.
-
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `ASSESSMENT_WORKER_ENABLED` | `true` | Start the queue consumer in API lifespan |
-| `ASSESSMENT_POLL_SECONDS` | `2` | Idle/retry interval |
-| `ASSESSMENT_FILE_TIMEOUT_SECONDS` | `60` | Discovery or one-file processing budget |
-| `ASSESSMENT_MAX_FILES` | `100` | Maximum PDFs admitted during discovery |
-
-These are engineering guardrails, not measured Render capacity. Timeout/cap values
-are saved per run; changing them affects new runs. Setting the worker flag false
-leaves queued work saved but unprocessed. Keep one API process for the initial MVP
-and initial schema creation; concurrent worker claims are guarded in the database.
-
-For this project's asyncpg connection URL, use
-`postgresql+asyncpg://user:password@host/db?ssl=require`.
-The previous `sslmode` example was a libpq-style option that asyncpg does not accept
-as a connection keyword. Use the actual host, database, and URL-encoded credentials
-from Neon; keep secrets in the backend environment.
-
-## Verification and remaining integration
-
-From `backend/`:
+From `backend/`, install the backend dependencies and run:
 
 ```powershell
-pip install -r requirements-test.txt
-python -W error -m unittest discover -s tests -v
+python -m app.services.embeddings
+uvicorn app.main:app --port 8000
 ```
 
-The suite uses an on-disk SQLite test database with foreign keys enabled. It covers
-HTTP authentication/ownership, idempotency and competing requests, sequential
-checkpoints, reopening the database, expired leases/stale commits, snapshot
-stability, and shutdown. It also exercises real child-process protocol handling,
-timeouts, oversized output, and cancellation under both Windows event-loop types.
-PDF/Drive tests use synthetic files and mocked transport; a real child is also
-tested with deliberately missing credentials.
+The preparation command downloads the public model and tokenizer to the ignored
+`backend/.model-cache` directory and checks inference. It sends no resumes to
+Hugging Face. Inference subsequently uses local files only. Enable
+`ASSESSMENT_WORKER_ENABLED=true`; the browser checks `/assessment-engine` before
+starting and reports an unavailable service rather than silently queuing work.
+The API retains its ability to queue work while an operator pauses the worker.
 
-Live Drive access, Neon intake persistence, and recovery after a completed-file
-checkpoint were verified on 12 November 2026; see the [live report](live-verification-2026-11-12.md).
-Competing PostgreSQL workers, interruption during a file, Google OAuth sign-in,
-and deployed memory/cold-start behavior remain unverified. The next integration
-is frontend start/progress controls, followed by evidence classification,
-semantic relevance, weighted scoring, and final ranked results.
+The original Sentence Transformer model remains `all-MiniLM-L6-v2`, executed
+through ONNX Runtime CPU with its tokenizer, attention-mask mean pooling and L2
+normalisation. The pinned repository revision is
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`; the artifact is
+`onnx/model_quint8_avx2.onnx`. No LLM API or model-host credential is required.
+See the [model card](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+and [ONNX pooling guidance](https://sbert.net/docs/sentence_transformer/usage/efficiency.html#onnx).
+
+The encoder batches eight texts, uses two intra-op CPU threads and truncates at
+256 word pieces. Passage construction uses at most 80 words per chunk and rejects
+more than 600 passages instead of silently dropping the end of a resume. These
+are engineering limits, not measured Render capacity. The runtime is reused
+within one PDF operation. Each PDF still gets an isolated child process, so the
+model is reloaded for each PDF; cached artifacts avoid repeated downloads. This
+retains killable native/network operations at a startup cost per file.
+
+## Browser workflow
+
+1. Save job details and all requirement settings.
+2. Review the saved folder and skill summary, then select **Initiate assessment**.
+3. The client checks readiness and folder access again. It retains a request UUID
+   across uncertain start responses so retries return the same assessment.
+4. Follow progress and separate Assessed, Excluded and Failed lists. Leave and
+   reopen the saved run from Previous assessments if necessary.
+5. Open a resume for evidence categories, section extraction, original PDF text,
+   page references and explicit/semantic matching information.
+6. Download final ranked results as CSV. Formula-like filenames are escaped.
+
+Draft changes apply to subsequent runs. Pending unsaved edits cannot be included
+silently. Requests have 30-second client timeouts; progress polls every 2.5 seconds
+and pauses after three failed refreshes, retaining the last known data and a
+retry action. A sleeping host can require another readiness attempt.
+
+## Processing policy
+
+The worker freezes the directly contained, accessible, non-trashed PDF list at
+**discovery time**, following pagination. Stable order is case-folded filename
+then Drive ID. Each source records ID, filename and available version/size/date
+metadata. Version changes are rejected rather than substituted silently.
+
+Extraction retains source pages and blocks. Unreadable, encrypted, damaged or
+OCR-dependent files are processing failures. An individual failure does not stop
+the remaining queue. Original Drive files are unchanged.
+
+Before analysis, all mandatory names or approved aliases must be explicitly
+present under the existing boundary/negation rules. Importance and evidence level
+do not change this gate. Interview-assessed mandatory requirements use the same
+presence check. Exclusions retain missing requirements and status, without an
+extracted document or score. No embedding or evidence analysis runs for them.
+
+For passing resumes, the versioned `resume-evidence-v1` policy:
+
+- Detects explicit skills/coursework/education/projects/experience/internship
+  sections and retains actual passages and entry context; missing facts are not invented.
+- Retrieves evidence per requirement, using the requirement description or job
+  context, explicit names/aliases, and the pinned Sentence Transformer.
+- Assigns the highest clearly supported category: 1 mention/basic, 2 coursework,
+  3 applied project, 4 internship, 5 skill application linked to a work entry
+  spanning at least six months. A heading alone does not elevate a skill.
+- Uses dated entry context for duration; year-only, reversed or future intervals
+  cannot establish six months. `Present` uses the snapshot's frozen UTC date.
+- Marks moderate semantic-only evidence undetermined with zero provisional
+  credit and an incomplete assessment. Strong semantic application can support a
+  category. These thresholds are initial heuristics, not validated probabilities.
+- Omits interview requirements from all numeric credit and score denominators.
+
+Default cosine thresholds 0.30, 0.50, 0.65 and 0.80 map relevance to
+0, 0.25, 0.5, 0.75 and 1. Explicit matches retain at least 0.25 relevance credit.
+Cosine similarity is never presented as confidence or proficiency.
+
+```text
+Evidence credit = min(supported evidence level / required evidence level, 1)
+Skill credit = relevance bucket × evidence credit
+Score = 100 × sum(importance × skill credit) / sum(resume-assessed importance)
+```
+
+Absent optional skills and undetermined evidence retain their weights with zero
+credit. Scores round to two decimal places before ranking. Equal scores share a
+competition rank. All passing resumes are ranked together; early results are
+provisional. All-interview configurations have no numeric score or rank.
+
+## API and compatibility
+
+All endpoints require an approved recruiter and enforce ownership. Another
+recruiter's job/run returns 404; file details are scoped to the owned run.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /assessment-engine` | Local model-cache and worker readiness |
+| `POST /jobs/{id}/assessments` | Start; JSON `idempotency_key` is a UUID; returns 202 and Location |
+| `GET /jobs/{id}/assessments` | Saved run history, limit/offset pagination |
+| `GET /assessments/{id}` | Phase, counts, current filename, run-level error |
+| `GET /assessments/{id}/snapshot` | Frozen requirements, model revision/file, rubric, date and limits |
+| `GET /assessments/{id}/files` | Frozen file outcomes, limit/offset and optional status |
+| `GET /assessments/{id}/files/{file_id}` | Original extracted document and analysis, only for passing files |
+| `GET /assessments/{id}/results` | Ordered result rows, tied ranks and provisional flag |
+| `GET /assessments/{id}/export` | Final CSV; active runs return 409 |
+
+The existing schema is retained. Analysis lives in the document JSON alongside
+original blocks. Storage uses the previous terminal `screened` run state and
+`ready_for_analysis` file state. New analysis-enabled runs are exposed as
+`completed` by the API once all passing files contain analysis. The compatibility
+`ready_for_analysis` count includes analysed files; `assessed` is the count with
+analysis. Older intake-only snapshots remain `screened` and have no ranked
+results; start a new run to analyse them. No migration fabricates old scores.
+
+## Recovery, isolation and bounds
+
+The existing unique active-slot constraint permits one active assessment across
+the deployment. Conditional database updates acquire a token and an expiry using
+database time; no transaction stays open while Drive/PDF/model work runs. The
+lease is the saved per-file timeout plus 30 seconds. A write is accepted only
+while its token matches and its lease has not expired.
+
+Discovery and each PDF operation run in killable child processes. The parent
+kills/reaps timed-out children and bounds protocol input/output at 4 MiB. A model
+failure produces a file failure, never a fabricated zero-score success. Worker
+stderr is discarded, and logs omit resume content and SQL parameters.
+
+Outcomes and final transitions commit together. Completed files are not selected
+again. After a crash, unfinished work can run again after lease expiry; this is
+at-least-once external reading with one accepted checkpoint. Clean shutdown
+kills/reaps the child and releases its lease. Unclean parent termination may leave
+a read-only orphan until the host cleans up its process group; fencing prevents
+stale database writes.
+
+| Setting | Default |
+| --- | --- |
+| `ASSESSMENT_WORKER_ENABLED` | true |
+| `ASSESSMENT_POLL_SECONDS` | 2 |
+| `ASSESSMENT_FILE_TIMEOUT_SECONDS` | 60 |
+| `ASSESSMENT_MAX_FILES` | 100 |
+
+Python 3.11+ is required. Windows selector loops dispatch subprocess operations
+through a dedicated Proactor loop. Existing asyncpg URLs use `?ssl=require`.
+
+## Verification and limits
+
+121 backend tests passed with warnings treated as errors. They cover the existing
+queue/gate controls and synthetic labelled rubric cases, score calculation,
+interview exclusion, unknown evidence, tie handling, exports, ownership and old
+snapshot compatibility. Model downloads are not required for this test suite.
+
+A separate live run used actual Drive downloads, the pinned ONNX model, the running
+HTTP API and Neon development persistence: 5 processed, 4 analysed, 1 OCR failure,
+with repeated-start and CSV checks. The user also launched their configured job
+through Chrome: 1 analysed, 3 mandatory exclusions, 1 failure. See the
+[live report](live-verification-2026-11-12.md).
+
+Manual parser corrections/reassessment, calibration on a manually labelled real
+resume dataset, broader layout/negation coverage, and hosted memory/cold-start
+measurement remain outstanding. These results establish local operation, not
+hiring accuracy or verified candidate competence. OCR, continuous monitoring and
+the detailed explanation dashboard remain deferred.

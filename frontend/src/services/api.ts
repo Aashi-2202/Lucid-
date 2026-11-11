@@ -1,6 +1,6 @@
 import { getToken } from "./auth";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+export const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 /**
  * Typed fetch wrapper for backend API calls.
@@ -23,10 +23,20 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: options?.signal ?? AbortSignal.timeout(30000),
+      headers,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error("The service took too long to respond. It may be starting; please try again.");
+    }
+    if (error instanceof TypeError) throw new Error("Could not reach the service. Check your connection and try again.");
+    throw error;
+  }
 
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => null);

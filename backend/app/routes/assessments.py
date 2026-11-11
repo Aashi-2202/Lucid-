@@ -2,6 +2,9 @@
 
 from uuid import UUID, uuid4
 from typing import Literal
+from datetime import datetime, timezone
+import csv
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ValidationError
@@ -38,11 +41,17 @@ async def progress(run, db) -> AssessmentProgress:
     ).group_by(AssessmentFile.status))).all()
     counts = dict(rows)
     terminal = ("ready_for_analysis", "excluded", "failed")
-    phase = run.status if run.status in ("screened", "failed") else "screening" if run.discovered else "discovery"
+    assessed = (await db.execute(select(func.count()).select_from(AssessmentFile).where(
+        AssessmentFile.assessment_id == run.id, AssessmentFile.status == "ready_for_analysis",
+        AssessmentFile.document["analysis"].as_string().is_not(None),
+    ))).scalar_one()
+    analysis_enabled = bool(run.snapshot.get("analysis_version"))
+    status = "completed" if run.status == "screened" and analysis_enabled and assessed == counts.get("ready_for_analysis", 0) else run.status
+    phase = status if status in ("completed", "screened", "failed") else ("assessing" if analysis_enabled else "screening") if run.discovered else "discovery"
     return AssessmentProgress(
-        id=run.id, job_id=run.job_id, status=run.status, phase=phase,
+        id=run.id, job_id=run.job_id, status=status, phase=phase,
         total_files=run.total_files, processed_files=sum(counts.get(k, 0) for k in terminal),
-        ready_for_analysis=counts.get("ready_for_analysis", 0), excluded=counts.get("excluded", 0),
+        ready_for_analysis=counts.get("ready_for_analysis", 0), assessed=assessed, excluded=counts.get("excluded", 0),
         failed=counts.get("failed", 0), current_file_name=run.current_file_name,
         error_code=run.error_code, error_message=run.error_message,
         created_at=run.created_at, finished_at=run.finished_at,
@@ -89,6 +98,8 @@ async def start_assessment(
             embedding_model=settings.embedding_model,
             relevance_thresholds=[settings.relevance_bucket_none, settings.relevance_bucket_weak,
                                   settings.relevance_bucket_moderate, settings.relevance_bucket_strong],
+            analysis_version="resume-evidence-v1",
+            as_of_date=datetime.now(timezone.utc).date().isoformat(),
         )
     except (ValidationError, ValueError):
         raise HTTPException(422, "The saved skill or folder configuration is invalid")
@@ -169,6 +180,63 @@ class FileDetail(FileProgress):
     drive_file_id: str
     version: str
     document: ResumeDocument | None
+
+
+@router.get("/assessment-engine")
+async def assessment_engine(recruiter: Recruiter = Depends(get_current_recruiter)):
+    from app.services.embeddings import available
+    ready = settings.assessment_worker_enabled and available()
+    return {"ready": ready,
+            "message": "Assessment service is ready." if ready
+            else "Assessment service is not ready. Ask the administrator to start it, then retry."}
+
+
+async def result_rows(run, db):
+    files = (await db.execute(select(AssessmentFile.id, AssessmentFile.name,
+        AssessmentFile.document["analysis"]["score"].as_float(),
+        AssessmentFile.document["analysis"]["complete"].as_boolean()).where(
+        AssessmentFile.assessment_id == run.id,
+        AssessmentFile.status == "ready_for_analysis",
+        AssessmentFile.document["analysis"].as_string().is_not(None),
+    ).order_by(AssessmentFile.position))).all()
+    rows = []
+    for file_id, name, score, complete in files:
+        rows.append({"file_id": file_id, "name": name, "score": score, "complete": complete, "rank": None})
+    rows.sort(key=lambda row: (row["score"] is None, -(row["score"] or 0), row["file_id"]))
+    last_score, rank = None, None
+    for index, row in enumerate(rows):
+        if row["score"] is not None:
+            if row["score"] != last_score:
+                rank = index + 1
+            row["rank"] = rank
+            last_score = row["score"]
+    return rows
+
+
+@router.get("/assessments/{assessment_id}/results")
+async def get_results(assessment_id: UUID, recruiter: Recruiter = Depends(get_current_recruiter),
+                      db: AsyncSession = Depends(get_db)):
+    run = await owned_run(assessment_id, recruiter.id, db)
+    return {"provisional": run.status in ("queued", "running"), "rows": await result_rows(run, db)}
+
+
+def csv_cell(value):
+    text = str(value) if value is not None else ""
+    return "'" + text if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")) else text
+
+
+@router.get("/assessments/{assessment_id}/export")
+async def export_results(assessment_id: UUID, recruiter: Recruiter = Depends(get_current_recruiter),
+                         db: AsyncSession = Depends(get_db)):
+    run = await owned_run(assessment_id, recruiter.id, db)
+    if run.status in ("queued", "running"):
+        raise HTTPException(409, "Wait until the assessment finishes before exporting final results")
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["Rank", "Resume", "Resume match score", "Assessment complete"])
+    for row in await result_rows(run, db):
+        writer.writerow([row["rank"], csv_cell(row["name"]), row["score"], row["complete"]])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=lucid-results.csv"})
 
 
 @router.get("/assessments/{assessment_id}/files/{file_id}", response_model=FileDetail)

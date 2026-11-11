@@ -1,12 +1,14 @@
 """Immutable queue inputs and a validated subprocess/result protocol."""
 
-from datetime import datetime
+from datetime import datetime, date
+import math
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.pdf import PdfLimits
+from app.services.analysis import AnalysisResult
 
 
 class FrozenModel(BaseModel):
@@ -36,7 +38,24 @@ class IntakeSnapshot(FrozenModel):
     max_files: int = Field(ge=1, le=1000)
     file_timeout_seconds: float = Field(ge=1, le=600)
     embedding_model: str
-    relevance_thresholds: list[float]
+    relevance_thresholds: list[float] = Field(min_length=4, max_length=4)
+    analysis_version: Literal["resume-evidence-v1"] | None = None
+    as_of_date: str = "1970-01-01"
+    embedding_revision: Literal["1110a243fdf4706b3f48f1d95db1a4f5529b4d41"] = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+    embedding_file: Literal["onnx/model_quint8_avx2.onnx"] = "onnx/model_quint8_avx2.onnx"
+
+    @field_validator("relevance_thresholds")
+    @classmethod
+    def ordered_thresholds(cls, values):
+        if any(not math.isfinite(value) or not 0 <= value <= 1 for value in values) or any(a >= b for a,b in zip(values, values[1:])):
+            raise ValueError("Relevance thresholds must be increasing finite values between zero and one")
+        return values
+
+    @field_validator("as_of_date")
+    @classmethod
+    def valid_date(cls, value):
+        date.fromisoformat(value)
+        return value
 
 
 class SourceFile(FrozenModel):
@@ -57,6 +76,7 @@ class DocumentBlock(FrozenModel):
 class ResumeDocument(FrozenModel):
     page_count: int = Field(ge=1)
     blocks: list[DocumentBlock]
+    analysis: AnalysisResult | None = None
 
 
 class Discovered(FrozenModel):
@@ -96,11 +116,12 @@ class StartAssessmentRequest(BaseModel):
 class AssessmentProgress(BaseModel):
     id: str
     job_id: int
-    status: Literal["queued", "running", "screened", "failed"]
-    phase: Literal["discovery", "screening", "screened", "failed"]
+    status: Literal["queued", "running", "screened", "completed", "failed"]
+    phase: Literal["discovery", "screening", "assessing", "screened", "completed", "failed"]
     total_files: int | None
     processed_files: int
     ready_for_analysis: int
+    assessed: int = 0
     excluded: int
     failed: int
     current_file_name: str | None

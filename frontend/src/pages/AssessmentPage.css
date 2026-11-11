@@ -1,0 +1,32 @@
+.assessment-page { max-width: 64rem; }
+.assessment-job-title { color: var(--setup-muted); margin: -1rem 0 2rem; overflow-wrap:anywhere; }
+.assessment-page progress { width:100%; height:1rem; accent-color:var(--setup-accent); }
+.assessment-counts { display:flex; flex-wrap:wrap; gap:2rem; margin:1.5rem 0; }
+.assessment-counts div { display:flex; flex-direction:column-reverse; gap:.25rem; }
+.assessment-counts dt { font-size:.875rem; color:var(--setup-muted); }
+.assessment-counts dd { margin:0; font-size:1.75rem; font-weight:600; }
+.assessment-result-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; }
+.assessment-result-heading h2 { margin:0; }
+.assessment-filters { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+.assessment-filters [aria-pressed=true] { color:#1d4ed8; border-color:var(--setup-accent); background:#eff6ff; }
+.assessment-table-scroll { overflow-x:auto; }
+.assessment-page table { width:100%; border-collapse:collapse; font-size:.9rem; }
+.assessment-page th, .assessment-page td { padding:.75rem; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; }
+.assessment-page th .setup-link { text-align:left; overflow-wrap:anywhere; max-width:24rem; }
+.assessment-page thead th { color:var(--setup-muted); font-weight:500; }
+.assessment-outcomes { padding:0; list-style:none; }
+.assessment-outcomes li { border-bottom:1px solid #e5e7eb; padding:1rem 0; overflow-wrap:anywhere; }
+.assessment-outcomes p { color:var(--setup-muted); }
+.assessment-skill-detail { border-bottom:1px solid #e5e7eb; padding:.5rem 0; overflow-wrap:anywhere; }
+.assessment-skill-detail summary { min-height:2.75rem; padding:.75rem 0; cursor:pointer; }
+.assessment-skill-detail blockquote { margin:1rem 0; padding:.75rem 1rem; border-left:3px solid #d1d5db; background:#f8fafc; }
+.assessment-skill-detail blockquote p { margin:0 0 .5rem; white-space:pre-wrap; }
+.assessment-skill-detail footer { color:var(--setup-muted); font-size:.875rem; }
+.assessment-resume-name, .assessment-source-text { overflow-wrap:anywhere; }
+.assessment-source-text { white-space:pre-wrap; }
+.assessment-history { margin-top:1.5rem; display:flex; flex-direction:column; gap:.75rem; }
+.assessment-history h3 { margin:0; font-size:1rem; }
+.assessment-history button { text-align:left; overflow-wrap:anywhere; }
+.assessment-requirements { padding-left:1.25rem; line-height:1.75; overflow-wrap:anywhere; }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+@media(max-width:36rem) { .assessment-counts { gap:1.5rem; } .assessment-page th,.assessment-page td { padding:.5rem; } }

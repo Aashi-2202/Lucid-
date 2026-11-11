@@ -6,11 +6,13 @@ import { newSkillDraft, skillInputs } from "../services/skillDrafts";
 import type { SkillDraft } from "../services/skillDrafts";
 import { useAuth } from "../components/AuthProvider";
 import SkillsEditor from "../components/SkillsEditor";
+import AssessmentLaunch from "../components/AssessmentLaunch";
+import "./AssessmentPage.css";
 import "./JobSetupPage.css";
 
-interface Props { jobId?: number; onBack: () => void }
+interface Props { jobId?: number; onBack: () => void; onAssessment:(id:string,jobId:number)=>void }
 
-export default function JobSetupPage({ jobId, onBack }: Props) {
+export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
   const { recruiter } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -146,6 +148,7 @@ export default function JobSetupPage({ jobId, onBack }: Props) {
             {folderResult.success ? <p><strong>{folderResult.folder_name}</strong> — {folderResult.pdf_count} PDF{folderResult.pdf_count !== 1 ? "s" : ""} found</p> : <p>{folderResult.error}</p>}
           </div>}
         </section>}
+        {savedJob&&<AssessmentLaunch job={savedJob} dirty={dirty} onStarted={id=>onAssessment(id,savedJob.id)} />}
       </>}
     </main>
   );
