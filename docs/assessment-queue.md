@@ -23,7 +23,9 @@ The API retains its ability to queue work while an operator pauses the worker.
 
 The original Sentence Transformer model remains `all-MiniLM-L6-v2`, executed
 through ONNX Runtime CPU with its tokenizer, attention-mask mean pooling and L2
-normalisation. The pinned repository revision is
+normalisation. The deployment requirements omit the full `sentence-transformers`
+Python wrapper and PyTorch; the exported model is executed directly by ONNX Runtime.
+The pinned repository revision is
 `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`; the artifact is
 `onnx/model_quint8_avx2.onnx`. No LLM API or model-host credential is required.
 See the [model card](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)

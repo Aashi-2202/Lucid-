@@ -17,8 +17,8 @@ google-api-python-client>=2.130.0
 # Keep the tested text-extraction API without the layout/ML bundle in 2.x.
 PyMuPDF>=1.28.2,<2
 
-# Semantic Retrieval (ONNX backend)
-sentence-transformers>=3.0.0
+# Exported Sentence Transformer inference directly through ONNX.
+# Do not install the sentence-transformers wrapper: it brings PyTorch.
 onnxruntime>=1.18.0
 tokenizers>=0.21,<1
 huggingface-hub>=0.30,<2

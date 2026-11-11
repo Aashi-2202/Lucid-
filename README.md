@@ -94,6 +94,10 @@ required; resume inference runs locally. The `.model-cache` directory is ignored
 by Git. Keep one backend process initially. See [assessment details](docs/assessment-queue.md)
 and [resume intake details](docs/resume-intake.md).
 
+The deployment dependencies intentionally omit PyTorch and the full
+`sentence-transformers` Python package. The pretrained Sentence Transformer is
+executed directly using ONNX Runtime, its tokenizer and NumPy pooling.
+
 ## Backend tests
 
 For a test environment without embedding-model packages, run from `backend/`:
