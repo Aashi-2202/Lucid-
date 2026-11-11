@@ -1,23 +1,39 @@
-import { useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "./components/AuthProvider";
+import SignInPage from "./pages/SignInPage";
 
-function App() {
-  const [backendStatus, setBackendStatus] = useState<string>("checking...");
+function AppContent() {
+  const { signedIn, recruiter } = useAuth();
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => res.json())
-      .then((data) => setBackendStatus(data.status))
-      .catch(() => setBackendStatus("offline — starting up"));
-  }, []);
+  if (!signedIn) {
+    return <SignInPage />;
+  }
 
+  // Signed in — show the main app (Jobs page will go here)
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-      <h1>Lucid</h1>
-      <p>AI-powered resume screening</p>
-      <p>
-        Backend: <strong>{backendStatus}</strong>
-      </p>
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid #eee",
+          paddingBottom: "1rem",
+          marginBottom: "2rem",
+        }}
+      >
+        <h1 style={{ margin: 0 }}>Lucid</h1>
+        <span>{recruiter?.name}</span>
+      </header>
+      <p>Jobs dashboard coming next…</p>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
