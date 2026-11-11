@@ -132,7 +132,7 @@ def check_folder_access(folder_id: str) -> FolderInfo | FolderError:
         )
 
 
-def list_pdf_files(folder_id: str) -> list[dict]:
+def list_pdf_files(folder_id: str, *, max_files: int | None = None) -> list[dict]:
     """
     List all non-trashed PDF files in the folder.
 
@@ -161,11 +161,25 @@ def list_pdf_files(folder_id: str) -> list[dict]:
         ).execute()
 
         files.extend(response.get("files", []))
+        if max_files is not None and len(files) > max_files:
+            raise ResumeProcessingError("too_many_files", "The folder exceeds the configured assessment file limit.")
         page_token = response.get("nextPageToken")
         if not page_token:
             break
 
     return files
+
+
+def discover_pdf_files(folder_id: str, *, max_files: int) -> list[dict]:
+    """Validate the source folder and freeze its direct PDF entries."""
+    _validate_drive_id(folder_id)
+    service = _get_drive_service()
+    folder = service.files().get(
+        fileId=folder_id, fields="id,mimeType,trashed", supportsAllDrives=True,
+    ).execute()
+    if folder.get("trashed") or folder.get("mimeType") != "application/vnd.google-apps.folder":
+        raise ResumeProcessingError("invalid_folder", "The source must be an accessible Google Drive folder.")
+    return list_pdf_files(folder_id, max_files=max_files)
 
 
 class _LimitedBuffer(BytesIO):

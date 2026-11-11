@@ -105,3 +105,15 @@ class DriveDownloadTests(unittest.TestCase):
         ]
         self.assertEqual(download_pdf_file("resume_id", folder_id="job_folder"), b"%PDF-content")
         self.assertEqual(self.http.request.call_count, 2)
+
+    def test_listing_follows_pagination_and_enforces_queue_cap(self):
+        self.files.list.return_value.execute.side_effect = [
+            {"files": [{"id": "a"}], "nextPageToken": "next"},
+            {"files": [{"id": "b"}]},
+        ]
+        self.assertEqual([f["id"] for f in list_pdf_files("job_folder", max_files=2)], ["a", "b"])
+        self.assertEqual(self.files.list.call_args.kwargs["pageToken"], "next")
+        self.files.list.return_value.execute.side_effect = [{"files": [{"id": "a"}, {"id": "b"}]}]
+        with self.assertRaises(ResumeProcessingError) as raised:
+            list_pdf_files("job_folder", max_files=1)
+        self.assertEqual(raised.exception.code, "too_many_files")

@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -23,6 +24,12 @@ class Settings(BaseSettings):
 
     # Model
     embedding_model: str = "all-MiniLM-L6-v2"
+
+    # Intake queue. Capacity limits are guardrails, not measured host capacity.
+    assessment_worker_enabled: bool = True
+    assessment_poll_seconds: float = Field(default=2.0, ge=0.1, le=60)
+    assessment_file_timeout_seconds: float = Field(default=60.0, ge=1, le=600)
+    assessment_max_files: int = Field(default=100, ge=1, le=1000)
 
     # Relevance buckets (cosine similarity thresholds)
     relevance_bucket_none: float = 0.30

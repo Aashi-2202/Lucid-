@@ -14,6 +14,9 @@ File Storage → Client's Google Drive (read-only via service account)
 ## Local Development
 
 ### Backend
+
+Use Python 3.11 or newer.
+
 ```bash
 cd backend
 python -m venv .venv
@@ -50,19 +53,23 @@ Frontend runs on `http://localhost:5173`, backend on `http://localhost:8000`.
 - Job drafts, Drive folder access checks, and configurable skill requirements.
 - Backend services for bounded PDF downloads, text extraction with page
   references, and mandatory-skill presence screening.
+- Persistent assessment queue, frozen job/skill inputs, sequential intake,
+  per-file checkpoints, restart recovery, and authenticated progress APIs.
 
-Resume intake is currently a tested service layer. Starting assessments from
-the app, persistent processing/progress, evidence analysis, and ranking are the
-next integration steps. See [resume intake details](docs/resume-intake.md) for
-outcomes, limits, usage, and verification.
+Assessments can now be initiated and inspected through the API, including
+Swagger at `/docs`. The frontend assessment controls, evidence analysis, and
+ranking are the next integration steps. See [queue/API details](docs/assessment-queue.md)
+and [resume intake details](docs/resume-intake.md) for usage and verification.
 
 ## Backend tests
 
-After installing the backend dependencies, run from `backend/`:
+For a test environment without embedding-model packages, run from `backend/`:
 
 ```powershell
+pip install -r requirements-test.txt
 python -W error -m unittest discover -s tests -v
 ```
 
-The tests use generated PDFs and mocked Drive transport; Google credentials,
-Neon, and model downloads are not required.
+Tests use a temporary on-disk SQLite database, generated PDFs, mocked Drive
+transport, and real isolated child processes. Google credentials, Neon, and model
+downloads are not required. Live PostgreSQL/Neon verification is still pending.

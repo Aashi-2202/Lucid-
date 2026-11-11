@@ -1,6 +1,6 @@
 """Skill requirement database model."""
 
-from sqlalchemy import String, Text, Integer, Boolean, Float, ForeignKey
+from sqlalchemy import String, Text, Integer, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import ARRAY
 
@@ -24,7 +24,7 @@ class SkillRequirement(Base):
     assessment_method: Mapped[str] = mapped_column(
         String(20), default="resume"  # "resume" or "interview"
     )
-    aliases: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    aliases: Mapped[list[str] | None] = mapped_column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=True)
 
     # Relationship
     job: Mapped["Job"] = relationship(back_populates="skills")  # noqa: F821

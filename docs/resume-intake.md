@@ -1,9 +1,10 @@
 # Resume intake and mandatory-skill screening
 
 This backend stage downloads one PDF, extracts selectable text, and applies the
-mandatory presence gate. It is a service layer for the assessment worker. There
-is no assessment-start endpoint, persistent queue, progress UI, evidence-level
-classification, embedding inference, or ranking in this milestone.
+mandatory presence gate. It is connected to the persistent assessment worker
+described in [queue/API details](assessment-queue.md). Frontend assessment
+controls, evidence-level classification, embedding inference, and ranking remain
+outside the current implementation.
 
 ## Entry points
 
@@ -86,10 +87,11 @@ order, language, and extraction completeness are not fully validated. OCR is
 outside this version. Retain the original text and page coordinates for later
 review rather than treating normalization as proof of accurate extraction.
 
-The extraction budget is cooperative. It cannot interrupt a stuck native parsing
-call. HTTP calls also have no overall download deadline here. Before exposing
-automated assessment processing, the worker must enforce process isolation and a
-hard per-file timeout in addition to these limits.
+The extraction service's own budget is cooperative. It cannot interrupt a stuck
+native parsing call, and the download service has no overall network deadline.
+The assessment worker now wraps each discovery/file operation in an isolated
+child process with a hard timeout covering network calls and PDF parsing.
+Calling the services directly does not provide that process boundary.
 
 ## Mandatory gate rules
 
@@ -124,7 +126,6 @@ quality, hosted memory usage, and database recovery are not covered here.
 
 ## Next integration
 
-Add an authenticated assessment-start API and durable Neon queue. Snapshot the
-job, requirements, gate/rubric versions, limits, and discovered file versions.
-Process sequentially with per-file checkpoints and restart recovery, then add
+The authenticated start/progress API, saved inputs, durable queue, and restart
+recovery are implemented. Next, connect frontend assessment controls and add
 structured evidence analysis, bucketed relevance, weighted scoring, and rankings.
