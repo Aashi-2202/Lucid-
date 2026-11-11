@@ -31,7 +31,8 @@ export interface CreateJobInput {
   title: string;
   description: string;
   folder_link: string;
-  company?: string;
+  company?: string | null;
+  skills?: Omit<SkillRequirement, "id">[];
 }
 
 export interface FolderCheckResult {

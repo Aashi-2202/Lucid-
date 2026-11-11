@@ -1,424 +1,152 @@
-import { useState, useEffect } from "react";
-import {
-  createJob,
-  getJob,
-  updateJob,
-  checkFolder,
-  setSkills,
-  getServiceAccountEmail,
-} from "../services/jobs";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { createJob, getJob, updateJob, checkFolder, getServiceAccountEmail } from "../services/jobs";
 import type { JobDetail, FolderCheckResult } from "../services/jobs";
-import type { SkillRequirement } from "../types";
+import { newSkillDraft, skillInputs } from "../services/skillDrafts";
+import type { SkillDraft } from "../services/skillDrafts";
+import { useAuth } from "../components/AuthProvider";
+import SkillsEditor from "../components/SkillsEditor";
+import "./JobSetupPage.css";
 
-interface Props {
-  jobId?: number; // If provided, edit existing; otherwise create new
-  onBack: () => void;
-}
-
-// ── Evidence level labels ───────────────────────────────────────
-const EVIDENCE_LABELS: Record<number, string> = {
-  1: "Mention/basic",
-  2: "Coursework/program",
-  3: "Applied project",
-  4: "Internship",
-  5: "Relevant work experience",
-};
-
-const IMPORTANCE_LABELS: Record<number, string> = {
-  1: "Nice to have",
-  2: "Low",
-  3: "Moderate",
-  4: "High",
-  5: "Critical",
-};
-
-// ── Empty skill template ────────────────────────────────────────
-function emptySkill(): SkillInput {
-  return {
-    skill: "",
-    description: "",
-    mandatory: false,
-    importance: 3,
-    required_evidence_level: 1,
-    assessment_method: "resume" as const,
-    aliases: [],
-  };
-}
-
-type SkillInput = Omit<SkillRequirement, "id">;
+interface Props { jobId?: number; onBack: () => void }
 
 export default function JobSetupPage({ jobId, onBack }: Props) {
-  // ── Job fields ────────────────────────────────────────────────
+  const { recruiter } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [folderLink, setFolderLink] = useState("");
   const [company, setCompany] = useState("");
   const [savedJob, setSavedJob] = useState<JobDetail | null>(null);
-
-  // ── Folder check ──────────────────────────────────────────────
+  const [skills, setSkills] = useState<SkillDraft[]>(() => [newSkillDraft()]);
   const [folderResult, setFolderResult] = useState<FolderCheckResult | null>(null);
   const [checkingFolder, setCheckingFolder] = useState(false);
-
-  // ── Service account email ─────────────────────────────────────
-  const [saEmail, setSaEmail] = useState<string>("");
+  const [saEmail, setSaEmail] = useState("");
   const [copiedEmail, setCopiedEmail] = useState(false);
-
-  // ── Skills ────────────────────────────────────────────────────
-  const [skills, setSkillsList] = useState<SkillInput[]>([emptySkill()]);
-  const [savingSkills, setSavingSkills] = useState(false);
-
-  // ── General state ─────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(Boolean(jobId));
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const savingRef = useRef(false);
 
-  // ── Load existing job ─────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     if (jobId) {
-      getJob(jobId).then((job) => {
-        setSavedJob(job);
-        setTitle(job.title);
-        setDescription(job.description);
-        setFolderLink(job.folder_link);
-        setCompany(job.company ?? "");
-        if (job.skills.length > 0) {
-          setSkillsList(
-            job.skills.map((s) => ({
-              skill: s.skill,
-              description: s.description ?? "",
-              mandatory: s.mandatory,
-              importance: s.importance,
-              required_evidence_level: s.required_evidence_level,
-              assessment_method: s.assessment_method,
-              aliases: s.aliases ?? [],
-            }))
-          );
-        }
-        if (job.folder_name) {
-          setFolderResult({
-            success: true,
-            folder_name: job.folder_name,
-            pdf_count: job.folder_pdf_count,
-            error: null,
-          });
-        }
-      });
+      setLoading(true);
+      setLoadError(false);
+      getJob(jobId).then(job => {
+        if (cancelled) return;
+        setSavedJob(job); setTitle(job.title); setDescription(job.description);
+        setFolderLink(job.folder_link); setCompany(job.company ?? "");
+        setSkills(job.skills.map(newSkillDraft));
+        if (job.folder_name) setFolderResult({success:true, folder_name:job.folder_name, pdf_count:job.folder_pdf_count, error:null});
+        setError(null); setDirty(false);
+      }).catch((err: unknown) => {
+        if (!cancelled) { setLoadError(true); setError(err instanceof Error ? err.message : "Could not load the job. Please try again."); }
+      }).finally(() => { if (!cancelled) setLoading(false); });
     }
-    // Load service account email
-    getServiceAccountEmail()
-      .then((r) => setSaEmail(r.email))
-      .catch(() => {}); // Non-critical
-  }, [jobId]);
+    getServiceAccountEmail().then(result => { if (!cancelled) setSaEmail(result.email); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [jobId, loadAttempt]);
 
-  // ── Save / Create Job ─────────────────────────────────────────
-  async function handleSaveJob() {
-    setError(null);
-    setSaving(true);
+  useEffect(() => {
+    function warn(event: BeforeUnloadEvent) { if (dirty) event.preventDefault(); }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  function changed() { setDirty(true); setMessage(""); }
+  function goBack() { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setError(null); setMessage("");
     try {
-      let job: JobDetail;
-      if (savedJob) {
-        job = await updateJob(savedJob.id, { title, description, folder_link: folderLink, company: company || undefined });
-      } else {
-        job = await createJob({ title, description, folder_link: folderLink, company: company || undefined });
-      }
-      setSavedJob(job);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
+      const input = { title:title.trim(), description:description.trim(), folder_link:folderLink.trim(), company:company.trim() || null, skills:skillInputs(skills) };
+      if (!input.title || !input.description || !input.folder_link) throw new Error("Enter a job title, description, and Drive folder link.");
+      const job = savedJob ? await updateJob(savedJob.id, input) : await createJob(input);
+      const folderChanged = savedJob?.folder_link !== job.folder_link;
+      setSavedJob(job); setTitle(job.title); setDescription(job.description); setCompany(job.company ?? ""); setFolderLink(job.folder_link);
+      // Preserve stable row keys and open matching settings after saving.
+      setDirty(false); setMessage("Job details and skill requirements saved.");
+      if (folderChanged) setFolderResult(null);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save the job. Your changes are still here."); }
+    finally { savingRef.current = false; setSaving(false); }
   }
 
-  // ── Check Folder ──────────────────────────────────────────────
-  async function handleCheckFolder() {
+  async function checkAccess() {
     if (!savedJob) return;
-    setCheckingFolder(true);
-    setFolderResult(null);
-    try {
-      const result = await checkFolder(savedJob.id);
-      setFolderResult(result);
-    } catch (e) {
-      setFolderResult({ success: false, folder_name: null, pdf_count: null, error: e instanceof Error ? e.message : "Check failed" });
-    } finally {
-      setCheckingFolder(false);
-    }
+    setCheckingFolder(true); setFolderResult(null);
+    try { setFolderResult(await checkFolder(savedJob.id)); }
+    catch (err) { setFolderResult({success:false, folder_name:null, pdf_count:null, error:err instanceof Error ? err.message : "Folder check failed. Please try again."}); }
+    finally { setCheckingFolder(false); }
   }
 
-  // ── Save Skills ───────────────────────────────────────────────
-  async function handleSaveSkills() {
-    if (!savedJob) return;
-    setSavingSkills(true);
-    setError(null);
-    try {
-      const validSkills = skills.filter((s) => s.skill.trim().length > 0);
-      await setSkills(savedJob.id, validSkills);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save skills");
-    } finally {
-      setSavingSkills(false);
-    }
-  }
-
-  // ── Skill list management ─────────────────────────────────────
-  function updateSkill(index: number, field: string, value: unknown) {
-    setSkillsList((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, [field]: value } : s))
-    );
-  }
-
-  function removeSkill(index: number) {
-    setSkillsList((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function addSkill() {
-    setSkillsList((prev) => [...prev, emptySkill()]);
-  }
-
-  // ── Copy email helper ─────────────────────────────────────────
-  function copyEmail() {
-    navigator.clipboard.writeText(saEmail).then(() => {
-      setCopiedEmail(true);
-      setTimeout(() => setCopiedEmail(false), 2000);
-    });
+  async function copyEmail() {
+    try { await navigator.clipboard.writeText(saEmail); setCopiedEmail(true); }
+    catch { setError("Could not copy the email. Select and copy the displayed address."); }
   }
 
   const isDraft = !savedJob || savedJob.status === "draft";
+  const disabled = !isDraft || saving;
+  const folderEdited = Boolean(savedJob && savedJob.folder_link !== folderLink.trim());
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: 800, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
-        <button onClick={onBack} style={linkBtnStyle}>← Back</button>
-        <h1 style={{ margin: 0 }}>{savedJob ? "Edit JD" : "New JD"}</h1>
-      </div>
-
-      {error && <p style={{ color: "#c00", marginBottom: "1rem" }}>{error}</p>}
-
-      {/* ── Job Details Section ─────────────────────────────────── */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitle}>Job Details</h2>
-
-        <label style={labelStyle}>
-          Job Title *
-          <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} placeholder="e.g. Data Engineer" disabled={!isDraft} />
-        </label>
-
-        <label style={labelStyle}>
-          Job Description *
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...inputStyle, minHeight: 120, resize: "vertical" }} placeholder="Describe the role requirements…" disabled={!isDraft} />
-        </label>
-
-        <label style={labelStyle}>
-          Company / Team
-          <input value={company} onChange={(e) => setCompany(e.target.value)} style={inputStyle} placeholder="Optional" disabled={!isDraft} />
-        </label>
-
-        <label style={labelStyle}>
-          Google Drive Folder Link *
-          <input value={folderLink} onChange={(e) => setFolderLink(e.target.value)} style={inputStyle} placeholder="https://drive.google.com/drive/folders/..." disabled={!isDraft} />
-        </label>
-
-        {isDraft && (
-          <button onClick={handleSaveJob} disabled={saving || !title || !description || !folderLink} style={primaryBtnStyle}>
-            {saving ? "Saving…" : savedJob ? "Update Job" : "Create Job"}
-          </button>
-        )}
-      </section>
-
-      {/* ── Folder Connection Section ──────────────────────────── */}
-      {savedJob && (
-        <section style={sectionStyle}>
-          <h2 style={sectionTitle}>Connect Drive Folder</h2>
-
-          {saEmail && (
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "1rem", marginBottom: "1rem" }}>
-              <p style={{ margin: "0 0 0.5rem", fontSize: "0.875rem", color: "#475569" }}>
-                Share your recruitment folder with this service account as <strong>Viewer</strong>:
-              </p>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <code style={{ flex: 1, background: "#fff", padding: "0.5rem", borderRadius: 4, border: "1px solid #e2e8f0", fontSize: "0.875rem" }}>{saEmail}</code>
-                <button onClick={copyEmail} style={secondaryBtnStyle}>
-                  {copiedEmail ? "Copied ✓" : "Copy"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button onClick={handleCheckFolder} disabled={checkingFolder} style={secondaryBtnStyle}>
-            {checkingFolder ? "Checking…" : "Check folder access"}
-          </button>
-
-          {folderResult && (
-            <div style={{
-              marginTop: "1rem",
-              padding: "1rem",
-              borderRadius: 8,
-              background: folderResult.success ? "#f0fdf4" : "#fef2f2",
-              border: `1px solid ${folderResult.success ? "#bbf7d0" : "#fecaca"}`,
-            }}>
-              {folderResult.success ? (
-                <>
-                  <p style={{ margin: 0, color: "#15803d" }}>
-                    ✓ <strong>{folderResult.folder_name}</strong> — {folderResult.pdf_count} PDF{folderResult.pdf_count !== 1 ? "s" : ""} found
-                  </p>
-                </>
-              ) : (
-                <p style={{ margin: 0, color: "#b91c1c" }}>✗ {folderResult.error}</p>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ── Skills Section ─────────────────────────────────────── */}
-      {savedJob && (
-        <section style={sectionStyle}>
-          <h2 style={sectionTitle}>Skills & Requirements</h2>
-
-          {skills.map((skill, i) => (
-            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                <label style={{ ...labelStyle, flex: 1 }}>
-                  Skill *
-                  <input value={skill.skill} onChange={(e) => updateSkill(i, "skill", e.target.value)} style={inputStyle} placeholder="e.g. Python" disabled={!isDraft} />
-                </label>
-                {isDraft && (
-                  <button onClick={() => removeSkill(i)} style={{ ...linkBtnStyle, color: "#b91c1c", alignSelf: "flex-end", marginBottom: 4 }}>
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              <label style={labelStyle}>
-                Requirement Description
-                <input value={skill.description ?? ""} onChange={(e) => updateSkill(i, "description", e.target.value)} style={inputStyle} placeholder="Describe the intended application…" disabled={!isDraft} />
+    <main className="job-setup">
+      <header className="setup-heading">
+        <button type="button" onClick={goBack} className="setup-link" disabled={saving}>← Back</button>
+        <h1>{savedJob || jobId ? "Edit JD" : "New JD"}</h1>
+      </header>
+      {error && <p role="alert" className="setup-error">{error}</p>}
+      {loading && <p role="status">Loading job configuration…</p>}
+      {loadError && <button type="button" className="setup-secondary" onClick={() => setLoadAttempt(value => value + 1)}>Try again</button>}
+      {!loading && !loadError && <>
+        {!isDraft && <p className="setup-help">This job is read-only. Only draft jobs can be edited.</p>}
+        <form onSubmit={save} onChange={changed}>
+          <section className="setup-section" aria-labelledby="job-details-title">
+            <h2 id="job-details-title">Job Details</h2>
+            <fieldset className="setup-fields" disabled={disabled}>
+              <label className="setup-field">Job Title *
+                <input value={title} onChange={event => setTitle(event.target.value)} required maxLength={255} placeholder="e.g. Data Engineer" />
               </label>
-
-              <div style={{ display: "flex", gap: "1.5rem", alignItems: "center", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                {/* Mandatory checkbox */}
-                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={skill.mandatory} onChange={(e) => updateSkill(i, "mandatory", e.target.checked)} disabled={!isDraft} />
-                  Mandatory
-                </label>
-
-                {/* Assessment method */}
-                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  Method:
-                  <select value={skill.assessment_method} onChange={(e) => updateSkill(i, "assessment_method", e.target.value)} disabled={!isDraft} style={selectStyle}>
-                    <option value="resume">Resume</option>
-                    <option value="interview">Interview</option>
-                  </select>
-                </label>
-              </div>
-
-              {/* Only show sliders for resume-assessed skills */}
-              {skill.assessment_method === "resume" && (
-                <div style={{ display: "flex", gap: "2rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                  {/* Importance slider */}
-                  <label style={{ flex: 1, minWidth: 200 }}>
-                    <span style={{ fontSize: "0.85rem" }}>Importance: <strong>{skill.importance}</strong> — {IMPORTANCE_LABELS[skill.importance]}</span>
-                    <input type="range" min={1} max={5} value={skill.importance} onChange={(e) => updateSkill(i, "importance", Number(e.target.value))} disabled={!isDraft} style={{ width: "100%" }} />
-                  </label>
-
-                  {/* Evidence level slider */}
-                  <label style={{ flex: 1, minWidth: 200 }}>
-                    <span style={{ fontSize: "0.85rem" }}>Required Evidence: <strong>{skill.required_evidence_level}</strong> — {EVIDENCE_LABELS[skill.required_evidence_level]}</span>
-                    <input type="range" min={1} max={5} value={skill.required_evidence_level} onChange={(e) => updateSkill(i, "required_evidence_level", Number(e.target.value))} disabled={!isDraft} style={{ width: "100%" }} />
-                  </label>
-                </div>
-              )}
-
-              {/* Aliases */}
-              <label style={{ ...labelStyle, marginTop: "0.75rem" }}>
-                <span style={{ fontSize: "0.85rem" }}>Aliases (comma-separated)</span>
-                <input
-                  value={(skill.aliases ?? []).join(", ") || ""}
-                  onChange={(e) => updateSkill(i, "aliases", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
-                  style={inputStyle}
-                  placeholder="e.g. Python3, Py"
-                  disabled={!isDraft}
-                />
+              <label className="setup-field">Job Description *
+                <textarea value={description} onChange={event => setDescription(event.target.value)} required rows={6} placeholder="Describe the role requirements…" />
               </label>
-            </div>
-          ))}
-
-          {isDraft && (
-            <div style={{ display: "flex", gap: "1rem" }}>
-              <button onClick={addSkill} style={secondaryBtnStyle}>+ Add Skill</button>
-              <button onClick={handleSaveSkills} disabled={savingSkills} style={primaryBtnStyle}>
-                {savingSkills ? "Saving…" : "Save Skills"}
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-    </div>
+              <label className="setup-field">Company / Team
+                <input value={company} onChange={event => setCompany(event.target.value)} placeholder="Optional" />
+              </label>
+              <label className="setup-field">Google Drive Folder Link *
+                <input value={folderLink} onChange={event => {setFolderLink(event.target.value); setFolderResult(null);}}
+                  required placeholder="https://drive.google.com/drive/folders/..." />
+              </label>
+              <p className="setup-help">Recruiter: {recruiter?.email}</p>
+            </fieldset>
+          </section>
+          <SkillsEditor skills={skills} onChange={value => {setSkills(value); changed();}} disabled={disabled} />
+          {isDraft && <div className="setup-actions">
+            <button type="submit" disabled={saving} aria-busy={saving} className="setup-primary">{savedJob ? "Save changes" : "Create Job"}</button>
+            <span role="status">{saving ? "Saving…" : message || (dirty ? "Unsaved changes" : "")}</span>
+          </div>}
+        </form>
+        {savedJob && <section className="setup-section" aria-labelledby="folder-title">
+          <h2 id="folder-title">Connect Drive Folder</h2>
+          {saEmail && <div className="folder-sharing">
+            <p>Share your recruitment folder with this service account as <strong>Viewer</strong>:</p>
+            <div className="folder-email"><code>{saEmail}</code><button type="button" onClick={copyEmail} className="setup-secondary">Copy email</button></div>
+            {copiedEmail && <p role="status">Email copied.</p>}
+          </div>}
+          {!saEmail && <p className="setup-help">The service-account email is unavailable. Contact the administrator if folder access fails.</p>}
+          {folderEdited && <p className="setup-help">Save your updated folder link before checking access.</p>}
+          <button type="button" onClick={checkAccess} disabled={checkingFolder || saving || folderEdited} aria-busy={checkingFolder} className="setup-secondary">Check folder access</button>
+          {checkingFolder && <p role="status">Checking folder access…</p>}
+          {folderResult && <div role={folderResult.success ? "status" : "alert"} className={`folder-result ${folderResult.success ? "folder-success" : "folder-error"}`}>
+            {folderResult.success ? <p><strong>{folderResult.folder_name}</strong> — {folderResult.pdf_count} PDF{folderResult.pdf_count !== 1 ? "s" : ""} found</p> : <p>{folderResult.error}</p>}
+          </div>}
+        </section>}
+      </>}
+    </main>
   );
 }
-
-// ── Styles ───────────────────────────────────────────────────────
-
-const sectionStyle: React.CSSProperties = {
-  marginBottom: "2rem",
-  padding: "1.5rem",
-  border: "1px solid #e5e7eb",
-  borderRadius: 12,
-};
-
-const sectionTitle: React.CSSProperties = {
-  margin: "0 0 1rem",
-  fontSize: "1.1rem",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.3rem",
-  marginBottom: "0.75rem",
-  fontSize: "0.9rem",
-  fontWeight: 500,
-  color: "#374151",
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "0.5rem 0.75rem",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-  fontSize: "0.9rem",
-  fontFamily: "inherit",
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: "0.3rem 0.5rem",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-  fontSize: "0.85rem",
-};
-
-const primaryBtnStyle: React.CSSProperties = {
-  padding: "0.5rem 1.25rem",
-  background: "#2563eb",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: "0.9rem",
-  fontWeight: 500,
-};
-
-const secondaryBtnStyle: React.CSSProperties = {
-  padding: "0.5rem 1rem",
-  background: "#fff",
-  color: "#374151",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: "0.875rem",
-};
-
-const linkBtnStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#2563eb",
-  cursor: "pointer",
-  fontSize: "0.9rem",
-};

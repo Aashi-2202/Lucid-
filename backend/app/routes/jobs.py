@@ -1,7 +1,7 @@
 """Job routes — create, list, update, and folder access check."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,20 +24,6 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 # ── Schemas ──────────────────────────────────────────────────────────
 
 
-class CreateJobRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=255)
-    description: str = Field(min_length=1)
-    folder_link: str = Field(min_length=1)
-    company: str | None = None
-
-
-class UpdateJobRequest(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    folder_link: str | None = None
-    company: str | None = None
-
-
 class SkillInput(BaseModel):
     skill: str = Field(min_length=1, max_length=255)
     description: str | None = None
@@ -46,6 +32,42 @@ class SkillInput(BaseModel):
     required_evidence_level: int = Field(default=1, ge=1, le=5)
     assessment_method: str = Field(default="resume", pattern="^(resume|interview)$")
     aliases: list[str] | None = None
+
+    @field_validator("skill")
+    @classmethod
+    def nonblank_skill(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Skill must not be blank")
+        return value
+
+    @field_validator("aliases")
+    @classmethod
+    def clean_aliases(cls, values: list[str] | None) -> list[str]:
+        result = []
+        seen = set()
+        for value in values or []:
+            value = value.strip()
+            if value and value.casefold() not in seen:
+                result.append(value)
+                seen.add(value.casefold())
+        return result
+
+
+class CreateJobRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: str = Field(min_length=1)
+    folder_link: str = Field(min_length=1)
+    company: str | None = None
+    skills: list[SkillInput] = Field(default_factory=list)
+
+
+class UpdateJobRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    folder_link: str | None = None
+    company: str | None = None
+    skills: list[SkillInput] | None = None
 
 
 class SkillResponse(BaseModel):
@@ -139,6 +161,7 @@ async def create_job(
         folder_id=folder_id,
         company=body.company,
         status="draft",
+        skills=[SkillRequirement(**skill.model_dump()) for skill in body.skills],
     )
     db.add(job)
     await db.commit()
@@ -193,9 +216,9 @@ async def update_job(
         job.title = body.title
     if body.description is not None:
         job.description = body.description
-    if body.company is not None:
+    if "company" in body.model_fields_set:
         job.company = body.company
-    if body.folder_link is not None:
+    if body.folder_link is not None and body.folder_link != job.folder_link:
         folder_id = extract_folder_id(body.folder_link)
         if not folder_id:
             raise HTTPException(status_code=400, detail="Invalid folder link")
@@ -203,6 +226,9 @@ async def update_job(
         job.folder_id = folder_id
         job.folder_name = None
         job.folder_pdf_count = None
+
+    if body.skills is not None:
+        await _replace_skills(job, body.skills, db)
 
     await db.commit()
     await db.refresh(job, attribute_names=["skills"])
@@ -260,31 +286,10 @@ async def set_skills(
             status_code=400, detail="Only draft jobs can be edited"
         )
 
-    # Remove existing skills
-    for existing in list(job.skills):
-        await db.delete(existing)
-
-    # Add new skills
-    new_skills = []
-    for s in skills:
-        skill = SkillRequirement(
-            job_id=job.id,
-            skill=s.skill,
-            description=s.description,
-            mandatory=s.mandatory,
-            importance=s.importance,
-            required_evidence_level=s.required_evidence_level,
-            assessment_method=s.assessment_method,
-            aliases=s.aliases,
-        )
-        db.add(skill)
-        new_skills.append(skill)
-
+    await _replace_skills(job, skills, db)
     await db.commit()
-    for skill in new_skills:
-        await db.refresh(skill)
-
-    return [SkillResponse.model_validate(s) for s in new_skills]
+    await db.refresh(job, attribute_names=["skills"])
+    return [SkillResponse.model_validate(s) for s in job.skills]
 
 
 @router.get("/{job_id}/skills", response_model=list[SkillResponse])
@@ -299,6 +304,14 @@ async def get_skills(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+
+async def _replace_skills(job: Job, skills: list[SkillInput], db: AsyncSession) -> None:
+    """Replace requirements inside the caller's job transaction."""
+    for existing in list(job.skills):
+        await db.delete(existing)
+    await db.flush()
+    job.skills = [SkillRequirement(**skill.model_dump()) for skill in skills]
 
 
 async def _get_job_for_recruiter(

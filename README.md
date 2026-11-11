@@ -66,8 +66,15 @@ sign-in flow. Test real Google sign-in in your regular browser.
 
 ## Current implementation
 
+The [product requirements](docs/product-requirements.md) reconcile the agreed
+workflow with the current stack and distinguish completed features from pending work.
+
 - Google sign-in, approved recruiter accounts, and signed session tokens.
 - Job drafts, Drive folder access checks, and configurable skill requirements.
+- All seven requirement controls are available before creating a job: suggested
+  or custom skills, description, mandatory checkbox, importance, evidence level,
+  assessment method, and expandable approved aliases. Job details and requirements
+  save together. Interview requirements retain Mandatory and hide scoring sliders.
 - Backend services for bounded PDF downloads, text extraction with page
   references, and mandatory-skill presence screening.
 - Persistent assessment queue, frozen job/skill inputs, sequential intake,
@@ -90,6 +97,9 @@ python -W error -m unittest discover -s tests -v
 Tests use a temporary on-disk SQLite database, generated PDFs, mocked Drive
 transport, and real isolated child processes. Google credentials, Neon, and model
 downloads are not required.
+
+Frontend requirement-draft tests run with `cd frontend; npm test` using Node
+22.18+ (Node 24 used for verification), without extra test dependencies.
 
 Live Drive/Neon intake verification completed on 12 November 2026: 5 PDFs
 processed, 4 ready for analysis, 1 flagged as requiring OCR, with saved progress
