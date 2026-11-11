@@ -94,4 +94,6 @@ downloads are not required.
 Live Drive/Neon intake verification completed on 12 November 2026: 5 PDFs
 processed, 4 ready for analysis, 1 flagged as requiring OCR, with saved progress
 recovered in a fresh worker process. See the [verification report](docs/live-verification-2026-11-12.md)
-for what was exercised and what remains pending, including Google OAuth sign-in.
+for what was exercised and what remains pending. Local Google sign-in was also
+verified: the user reached the Jobs page, and the approved account was confirmed
+in Neon. Hosted sign-in and frontend assessment controls remain unverified.
