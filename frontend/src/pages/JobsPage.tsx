@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../components/AuthProvider";
 import type { JobSummary } from "../services/jobs";
 import { listJobs } from "../services/jobs";
+import DeleteJobDialog from "../components/DeleteJobDialog";
+import "./JobsPage.css";
 
 interface Props {
   onNewJob: () => void;
@@ -13,6 +15,9 @@ export default function JobsPage({ onNewJob, onSelectJob }: Props) {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<JobSummary | null>(null);
+  const [notice, setNotice] = useState("");
+  const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -23,8 +28,8 @@ export default function JobsPage({ onNewJob, onSelectJob }: Props) {
   }, []);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: 800, margin: "0 auto" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+    <div className="jobs-page" style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: 800, margin: "0 auto" }}>
+      <header className="jobs-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
         <h1 style={{ margin: 0 }}>Lucid</h1>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <span style={{ color: "#666" }}>{recruiter?.name}</span>
@@ -33,37 +38,43 @@ export default function JobsPage({ onNewJob, onSelectJob }: Props) {
       </header>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h2 style={{ margin: 0 }}>Jobs</h2>
+        <h2 ref={heading} tabIndex={-1} style={{ margin: 0 }}>Jobs</h2>
         <button onClick={onNewJob} style={primaryBtnStyle}>+ New JD</button>
       </div>
 
       {loading && <p>Loading…</p>}
-      {error && <p style={{ color: "#c00" }}>{error}</p>}
+      {error && <p role="alert" className="jobs-error">{error}</p>}
+      <p role="status" className="jobs-notice">{notice}</p>
 
       {!loading && jobs.length === 0 && (
         <p style={{ color: "#666" }}>No jobs yet. Create your first JD to get started.</p>
       )}
 
       {jobs.map((job) => (
-        <div
-          key={job.id}
-          onClick={() => onSelectJob(job.id)}
-          style={jobCardStyle}
-        >
-          <div style={{ flex: 1 }}>
+        <div key={job.id} className="jobs-card">
+          <button type="button" className="jobs-open" onClick={() => onSelectJob(job.id)} aria-label={`Open ${job.title}`}>
+          <span className="jobs-identity">
             <strong>{job.title}</strong>
             {job.company && <span style={{ color: "#666", marginLeft: "0.5rem" }}>— {job.company}</span>}
-          </div>
-          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          </span>
+          <span className="jobs-metadata">
             {job.folder_pdf_count != null && (
               <span style={{ color: "#666", fontSize: "0.875rem" }}>
                 {job.folder_pdf_count} PDFs
               </span>
             )}
             <span style={statusBadgeStyle(job.status)}>{job.status}</span>
-          </div>
+          </span>
+          </button>
+          <button type="button" className="jobs-delete" aria-label={`Delete ${job.title}`} onClick={() => { setNotice(""); setDeleting(job); }}>Delete</button>
         </div>
       ))}
+      {deleting && <DeleteJobDialog job={deleting} onCancel={() => setDeleting(null)} onDeleted={() => {
+        setJobs((current) => current.filter((job) => job.id !== deleting.id));
+        setNotice(`Deleted “${deleting.title}”.`);
+        setDeleting(null);
+        heading.current?.focus();
+      }} />}
     </div>
   );
 }
@@ -87,18 +98,6 @@ const linkBtnStyle: React.CSSProperties = {
   color: "#2563eb",
   cursor: "pointer",
   fontSize: "0.875rem",
-};
-
-const jobCardStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "1rem 1.25rem",
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  marginBottom: "0.75rem",
-  cursor: "pointer",
-  transition: "border-color 0.15s",
 };
 
 function statusBadgeStyle(status: string): React.CSSProperties {

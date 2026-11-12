@@ -52,6 +52,10 @@ export function getJob(id: number): Promise<JobDetail> {
   return apiFetch<JobDetail>(`/jobs/${id}`);
 }
 
+export function deleteJob(id: number): Promise<void> {
+  return apiFetch<void>(`/jobs/${id}`, { method: "DELETE" });
+}
+
 export function createJob(input: CreateJobInput): Promise<JobDetail> {
   return apiFetch<JobDetail>("/jobs", {
     method: "POST",

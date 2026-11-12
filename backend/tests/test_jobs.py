@@ -1,13 +1,14 @@
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import null, select
 
 from app.core.auth import create_session_token
 from app.core.database import get_db
 from app.main import app
-from app.models import Job
+from app.models import Assessment, AssessmentFile, Job, SkillRequirement
 from queue_helpers import QueueTestCase
 
 
@@ -103,3 +104,59 @@ class JobConfigurationTests(QueueTestCase):
         changed = await self.client.patch("/jobs/1", json={"folder_link":"https://drive.google.com/drive/folders/different_folder"})
         self.assertIsNone(changed.json()["folder_name"])
         self.assertIsNone(changed.json()["folder_pdf_count"])
+
+    async def terminal_run(self, status="screened"):
+        run_id = str(uuid4())
+        async with self.sessions.begin() as db:
+            db.add(Assessment(id=run_id, job_id=1, recruiter_id=1,
+                idempotency_key=str(uuid4()), status=status, active_slot=null(),
+                snapshot={"analysis_version": "resume-evidence-v1"}))
+            await db.flush()
+            db.add(AssessmentFile(assessment_id=run_id, position=0, drive_file_id="synthetic-file",
+                name="synthetic.pdf", version="1", source_metadata={}, status="ready_for_analysis",
+                document={"analysis": {"score": 50}}))
+        return run_id
+
+    async def test_delete_executed_job_removes_all_saved_results_and_requirements(self):
+        run_ids = [await self.terminal_run(), await self.terminal_run("failed")]
+        with patch("app.routes.jobs.check_folder_access") as drive:
+            response = await self.client.delete("/jobs/1")
+        self.assertEqual(response.status_code, 204, response.text)
+        self.assertEqual(response.content, b"")
+        drive.assert_not_called()
+        self.assertEqual([job["id"] for job in (await self.client.get("/jobs")).json()], [])
+        for run_id in run_ids:
+            self.assertEqual((await self.client.get(f"/assessments/{run_id}")).status_code, 404)
+        async with self.sessions() as db:
+            self.assertIsNone(await db.get(Job, 1))
+            self.assertIsNotNone(await db.get(Job, 2))
+            self.assertEqual((await db.execute(select(SkillRequirement))).scalars().all(), [])
+            self.assertEqual((await db.execute(select(Assessment))).scalars().all(), [])
+            self.assertEqual((await db.execute(select(AssessmentFile))).scalars().all(), [])
+
+    async def test_delete_without_assessments_and_missing_job(self):
+        self.assertEqual((await self.client.delete("/jobs/1")).status_code, 204)
+        self.assertEqual((await self.client.delete("/jobs/1")).status_code, 404)
+
+    async def test_delete_requires_approved_owner(self):
+        self.assertEqual((await self.client.delete("/jobs/2")).status_code, 404)
+        for headers in ({"Authorization": ""}, {"Authorization": "Bearer " + create_session_token(3, "three@example.test")}):
+            response = await self.client.delete("/jobs/1", headers=headers)
+            self.assertIn(response.status_code, (401, 403))
+        async with self.sessions() as db:
+            self.assertIsNotNone(await db.get(Job, 1))
+            self.assertIsNotNone(await db.get(Job, 2))
+
+    async def test_delete_blocks_queued_and_running_assessment_without_removing_history(self):
+        await self.terminal_run()
+        run_id = await self.enqueue()
+        for state in ("queued", "running"):
+            async with self.sessions.begin() as db:
+                (await db.get(Assessment, run_id)).status = state
+            response = await self.client.delete("/jobs/1")
+            self.assertEqual(response.status_code, 409, response.text)
+            async with self.sessions() as db:
+                self.assertIsNotNone(await db.get(Job, 1))
+                self.assertEqual(len((await db.execute(select(Assessment))).scalars().all()), 2)
+                self.assertEqual(len((await db.execute(select(AssessmentFile))).scalars().all()), 1)
+                self.assertEqual(len((await db.execute(select(SkillRequirement))).scalars().all()), 1)

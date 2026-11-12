@@ -95,3 +95,26 @@ Browser checks used synthetic UI fixtures for running/completed/all-excluded
 states, source details, paused retries, and mobile/desktop layout. The browser
 download permission gate did not grant access, so the final browser download
 was not completed or retried. CSV generation was verified through the live API.
+
+## Job deletion verification
+
+The Jobs list now offers a separate Delete action with a confirmation naming
+the job and the permanent loss of its requirements, saved assessments and results.
+Google Drive originals remain unchanged. The endpoint checks ownership, rejects
+queued/running assessments, and removes child records and the job in one transaction.
+Assessment initiation and deletion acquire the same PostgreSQL job-row lock.
+
+128 backend tests passed with warnings treated as errors; frontend tests and
+the production build passed. Synthetic browser checks covered Cancel/Escape,
+focus restoration and Tab boundaries, an error followed by successful retry,
+active-run rejection, and the row disappearing after a successful empty 204 response.
+List/dialog geometry was checked at 390, 1440 and 1728 pixels, including a long
+job title. Touch emulation and slow-network device behavior were not exercised.
+
+A separate real-Neon check used synthetic records inside an outer transaction
+that was rolled back. It verified assessment initiation with the PostgreSQL row
+lock, active-run deletion returning 409, terminal deletion returning 204, and
+removal of requirements, assessments and file results. This used in-process
+ASGI requests and the real PostgreSQL database; the browser fixture used mocked
+responses. No user jobs or original Drive files were deleted. The local backend
+was restarted with the new endpoint; Render deployment remains pending.

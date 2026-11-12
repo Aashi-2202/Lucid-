@@ -1,14 +1,15 @@
 """Job routes — create, list, update, and folder access check."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_recruiter
 from app.models.job import Job, extract_folder_id
+from app.models.assessment import Assessment, AssessmentFile
 from app.models.recruiter import Recruiter
 from app.models.skill import SkillRequirement
 from app.services.drive import (
@@ -233,6 +234,37 @@ async def update_job(
     await db.commit()
     await db.refresh(job, attribute_names=["skills"])
     return _job_to_response(job, recruiter.email)
+
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_job(
+    job_id: int,
+    recruiter: Recruiter = Depends(get_current_recruiter),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete an owned job and saved results, without touching Drive originals."""
+    # Assessment initiation takes the same job lock. A run cannot start between
+    # this active-run check and deletion on PostgreSQL.
+    owned_id = await db.scalar(select(Job.id).where(
+        Job.id == job_id, Job.recruiter_id == recruiter.id,
+    ).with_for_update())
+    if owned_id is None:
+        raise HTTPException(404, "Job not found")
+    active = await db.scalar(select(Assessment.id).where(
+        Assessment.job_id == job_id, Assessment.active_slot == 1,
+    ).limit(1))
+    if active is not None:
+        raise HTTPException(409, "An assessment is still running for this job. Wait for it to finish before deleting.")
+
+    # Explicit child-first deletion also supports existing databases whose job
+    # foreign keys were created without ON DELETE CASCADE. One commit is atomic.
+    run_ids = select(Assessment.id).where(Assessment.job_id == job_id)
+    await db.execute(delete(AssessmentFile).where(AssessmentFile.assessment_id.in_(run_ids)))
+    await db.execute(delete(Assessment).where(Assessment.job_id == job_id))
+    await db.execute(delete(SkillRequirement).where(SkillRequirement.job_id == job_id))
+    await db.execute(delete(Job).where(Job.id == job_id))
+    await db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/{job_id}/check-folder", response_model=FolderCheckResponse)

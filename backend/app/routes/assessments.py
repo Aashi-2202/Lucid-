@@ -77,7 +77,7 @@ async def start_assessment(
     # A single joined query gives a consistent job/requirements snapshot.
     job = (await db.execute(select(Job).options(joinedload(Job.skills)).where(
         Job.id == job_id, Job.recruiter_id == recruiter_id,
-    ))).unique().scalar_one_or_none()
+    ).with_for_update(of=Job))).unique().scalar_one_or_none()
     if job is None:
         raise HTTPException(404, "Job not found")
     if job.status != "draft" or not job.title.strip() or not job.description.strip() or not job.skills:

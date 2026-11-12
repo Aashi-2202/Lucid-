@@ -44,6 +44,7 @@ export async function apiFetch<T>(
     throw new Error(typeof detail === "string" ? detail : `Request failed (${res.status}). Please try again.`);
   }
 
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 

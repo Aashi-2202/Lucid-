@@ -77,6 +77,8 @@ workflow with the current stack and distinguish completed features from pending 
 
 - Verified Google sign-up/sign-in, optional administrator approval, and signed session tokens.
 - Job drafts, Drive folder access checks, and configurable skill requirements.
+- Delete owned jobs and their saved assessments/results from the Jobs list after
+  confirmation. Queued/running assessments block deletion; Drive originals stay unchanged.
 - All seven requirement controls are available before creating a job: suggested
   or custom skills, description, mandatory checkbox, importance, evidence level,
   assessment method, and expandable approved aliases. Job details and requirements
