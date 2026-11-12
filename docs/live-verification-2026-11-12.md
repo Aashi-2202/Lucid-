@@ -118,3 +118,31 @@ removal of requirements, assessments and file results. This used in-process
 ASGI requests and the real PostgreSQL database; the browser fixture used mocked
 responses. No user jobs or original Drive files were deleted. The local backend
 was restarted with the new endpoint; Render deployment remains pending.
+
+## Username/password accounts
+
+A later request added local username/password registration and sign-in alongside
+Google. The full backend suite passed 139 tests with warnings treated as errors;
+focused password/migration tests also passed after the final validation changes.
+Frontend TypeScript/production build passed. Synthetic browser checks exercised
+mismatched confirmation and focus, duplicate username feedback, successful account
+creation, sign-out, wrong-password feedback, repeat sign-in and the retained Google
+callback path. Both form modes were measured at 390, 1440 and 1728 pixels; password
+visibility and autocomplete attributes were checked. Browser fixture responses
+were mocked; this does not establish a new real Google OAuth sign-in.
+
+Alembic revision `0001_password_accounts` was tested against a legacy SQLite
+schema and an isolated real PostgreSQL schema; the latter transaction was rolled
+back. Existing identity values and job ownership were preserved, local identities
+could be inserted and repeat upgrades were safe. The versioned upgrade was then
+applied through the configured Neon endpoint's direct connection. Existing
+recruiter identity values and job ownership were compared before/after and matched.
+
+A separate live check used a generated disposable account through the running
+HTTP server and frontend `/api` proxy against real Neon. It verified registration,
+wrong-password rejection, case-insensitive repeat login, profile access, an empty
+owned Jobs list, creation/deletion of its own job, nullable email and stored
+Argon2id hash. Only the synthetic account/job were cleaned up afterward; user
+accounts/jobs and original Drive files were untouched. No password, token or hash
+is recorded here. Forgotten-password recovery and account linking remain outside
+this addition; per-process attempt limits are not a distributed limiter.

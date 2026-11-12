@@ -22,7 +22,7 @@ export interface JobDetail {
   folder_name: string | null;
   folder_pdf_count: number | null;
   company: string | null;
-  recruiter_email: string;
+  recruiter_email: string | null;
   status: string;
   skills: SkillRequirement[];
 }

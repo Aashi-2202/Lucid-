@@ -93,7 +93,7 @@ class JobResponse(BaseModel):
     folder_name: str | None
     folder_pdf_count: int | None
     company: str | None
-    recruiter_email: str
+    recruiter_email: str | None
     status: str
     skills: list[SkillResponse] = []
 
@@ -366,7 +366,7 @@ async def _get_job_for_recruiter(
     return job
 
 
-def _job_to_response(job: Job, recruiter_email: str) -> JobResponse:
+def _job_to_response(job: Job, recruiter_email: str | None) -> JobResponse:
     """Convert a Job ORM instance to an API response."""
     return JobResponse(
         id=job.id,

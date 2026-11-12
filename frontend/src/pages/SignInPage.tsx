@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../components/AuthProvider";
+import "./SignInPage.css";
 
 declare global {
   interface Window {
@@ -51,18 +52,50 @@ function loadGoogleSdk(): Promise<void> {
 }
 
 export default function SignInPage() {
-  const { loading, error, handleGoogleCredential } = useAuth();
+  const { loading, error, handleGoogleCredential, handlePassword, clearError } = useAuth();
   const buttonRef = useRef<HTMLDivElement>(null);
   const [sdkLoading, setSdkLoading] = useState(true);
   const [sdkError, setSdkError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [register, setRegister] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [confirmationError, setConfirmationError] = useState(false);
+  const confirmationRef = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading || submitting.current) return;
+    setConfirmationError(false);
+    if (register && password !== confirmation) {
+      setConfirmationError(true);
+      confirmationRef.current?.focus();
+      return;
+    }
+    submitting.current = true;
+    try { await handlePassword(username.trim(), password, register); }
+    finally { submitting.current = false; }
+  }
+
+  function switchMode() {
+    if (loading) return;
+    setRegister(value => !value);
+    setPassword("");
+    setConfirmation("");
+    setConfirmationError(false);
+    setShowPassword(false);
+    clearError();
+  }
 
   useEffect(() => {
     let cancelled = false;
     setSdkLoading(true);
     setSdkError(null);
     if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.startsWith("your-client-id")) {
-      setSdkError("Sign-in is not available yet. Contact the administrator.");
+      setSdkError("Google sign-in is not configured. You can use a username and password.");
       setSdkLoading(false);
       return;
     }
@@ -89,27 +122,46 @@ export default function SignInPage() {
   }, [handleGoogleCredential, attempt]);
 
   return (
-    <main style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", minHeight: "100vh", padding: "1rem",
-      boxSizing: "border-box", fontFamily: "system-ui, sans-serif",
-    }}>
-      <h1 style={{ marginBottom: "0.5rem" }}>Lucid</h1>
-      <p style={{ color: "#666", marginBottom: "2rem", textAlign: "center" }}>
-        AI-powered resume screening
-      </p>
-      {(loading || sdkLoading) && <p role="status">{loading ? "Signing in…" : "Loading Google sign-in…"}</p>}
-      {(error || sdkError) && (
-        <p role="alert" style={{ color: "#b00020", marginBottom: "1rem", maxWidth: 400, textAlign: "center" }}>
-          {sdkError || error}
-        </p>
-      )}
-      <div ref={buttonRef} style={{ display: loading ? "none" : "block", minHeight: 44 }} />
-      {sdkError && GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith("your-client-id") && (
-        <button onClick={() => setAttempt(value => value + 1)} style={{ minHeight: 44, padding: "0.5rem 1rem" }}>
-          Try again
-        </button>
-      )}
+    <main className="signin-page">
+      <section className="signin-panel" aria-labelledby="signin-title">
+        <h1>Lucid</h1>
+        <p className="signin-subtitle">AI-powered resume screening</p>
+        <h2 id="signin-title">{register ? "Create account" : "Sign in"}</h2>
+        <form onSubmit={submit} aria-busy={loading}>
+          <label htmlFor="signin-username">Username</label>
+          <input id="signin-username" name="username" value={username} onChange={e => setUsername(e.target.value)}
+            autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={40}
+            pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]*" aria-describedby={register ? "username-help" : undefined} readOnly={loading} />
+          {register && <p className="signin-help" id="username-help">3–40 letters, numbers, dots, underscores or hyphens. Start with a letter or number.</p>}
+          <label htmlFor="signin-password">Password</label>
+          <input id="signin-password" name="password" type={showPassword ? "text" : "password"} value={password}
+            onChange={e => setPassword(e.target.value)} autoComplete={register ? "new-password" : "current-password"}
+            required minLength={register ? 12 : 1} maxLength={128} readOnly={loading}
+            aria-describedby={register ? "password-help" : undefined} />
+          {register && <p className="signin-help" id="password-help">Use 12–128 characters. A long passphrase works well.</p>}
+          {register && <>
+            <label htmlFor="signin-confirmation">Confirm password</label>
+            <input ref={confirmationRef} id="signin-confirmation" name="password-confirmation" type={showPassword ? "text" : "password"}
+              value={confirmation} onChange={e => { setConfirmation(e.target.value); setConfirmationError(false); }}
+              autoComplete="new-password" required maxLength={128} readOnly={loading}
+              aria-invalid={confirmationError || undefined} aria-describedby={confirmationError ? "confirmation-error" : undefined} />
+            {confirmationError && <p id="confirmation-error" className="signin-error" role="alert">Passwords do not match.</p>}
+          </>}
+          <label className="signin-show-password"><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} />Show password</label>
+          {error && <p role="alert" className="signin-error">{error}</p>}
+          <button className="signin-submit" type="submit" aria-disabled={loading}>{loading ? (register ? "Creating account…" : "Signing in…") : register ? "Create account" : "Sign in"}</button>
+        </form>
+        <p className="signin-switch">{register ? "Already have an account?" : "New to Lucid?"} <button type="button" onClick={switchMode} aria-disabled={loading}>{register ? "Sign in" : "Create account"}</button></p>
+        <div className="signin-divider"><span>or continue with Google</span></div>
+        <div className="signin-google" aria-busy={loading} inert={loading}>
+          {sdkLoading && <p role="status" className="signin-help">Loading Google sign-in…</p>}
+          {sdkError && <p role="status" className="signin-error">{sdkError}</p>}
+          <div ref={buttonRef} style={{ minHeight: 44 }} />
+          {sdkError && GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith("your-client-id") && (
+            <button type="button" className="signin-retry" onClick={() => setAttempt(value => value + 1)}>Retry Google sign-in</button>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,7 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -15,7 +18,7 @@ from app.services.assessment_queue import worker_loop
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    # Create tables on startup (MVP — migrate to Alembic later)
+    # Initialize fresh databases; existing databases use explicit versioned upgrades.
     await create_tables()
     worker = asyncio.create_task(worker_loop(async_session, settings.assessment_poll_seconds)) if settings.assessment_worker_enabled else None
     try:
@@ -34,6 +37,15 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path in ("/auth/register", "/auth/password"):
+        # Default validation errors can echo submitted input, including passwords.
+        return JSONResponse(status_code=422, content={"detail":
+            "Use a username of 3–40 letters, numbers, dots, underscores or hyphens, starting with a letter or number. Passwords can be at most 128 characters."})
+    return await request_validation_exception_handler(request, exc)
 
 # CORS — allow frontend to call backend
 app.add_middleware(

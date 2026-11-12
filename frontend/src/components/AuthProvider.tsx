@@ -10,6 +10,7 @@ import {
   getToken,
   isSignedIn as checkSignedIn,
   signInWithGoogle,
+  signInWithPassword,
   signOut as clearSession,
 } from "../services/auth";
 import type { RecruiterInfo } from "../services/auth";
@@ -21,6 +22,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   handleGoogleCredential: (credential: string) => Promise<void>;
+  handlePassword: (username: string, password: string, register: boolean) => Promise<void>;
+  clearError: () => void;
   signOut: () => void;
 }
 
@@ -59,6 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
+  const handlePassword = useCallback(async (username: string, password: string, register: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await signInWithPassword(username, password, register);
+      setRecruiter(data.recruiter);
+      setToken(data.token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  const clearError = useCallback(() => setError(null), []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -68,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         handleGoogleCredential,
+        handlePassword,
+        clearError,
         signOut,
       }}
     >

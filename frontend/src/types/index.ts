@@ -5,7 +5,8 @@
 
 export interface Recruiter {
   id: string;
-  email: string;
+  email: string | null;
+  username?: string | null;
   name: string;
 }
 
@@ -15,7 +16,7 @@ export interface JobDraft {
   description: string;
   folder_link: string;
   company?: string;
-  recruiter_email: string;
+  recruiter_email: string | null;
 }
 
 export interface SkillRequirement {

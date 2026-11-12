@@ -1,0 +1,24 @@
+.signin-page { display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 32px 16px; box-sizing: border-box; font-family: system-ui, sans-serif; color: #111827; }
+.signin-panel { width: 100%; max-width: 380px; }
+.signin-panel h1 { text-align: center; margin: 0 0 8px; font-size: 2rem; }
+.signin-subtitle { color: #4b5563; text-align: center; margin: 0 0 32px; }
+.signin-panel h2 { margin: 0 0 24px; font-size: 1.25rem; }
+.signin-panel form { display: flex; flex-direction: column; gap: 8px; }
+.signin-panel label { font-weight: 500; }
+.signin-panel input:not([type="checkbox"]) { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #9ca3af; border-radius: 6px; font: inherit; font-size: 16px; color: inherit; background: white; }
+.signin-panel input[aria-invalid="true"] { border-color: #b91c1c; }
+.signin-panel input:focus-visible, .signin-panel button:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.signin-panel button { font: inherit; min-height: 44px; cursor: pointer; }
+.signin-submit { border: 0; border-radius: 6px; padding: 10px 16px; color: white; background: #2563eb; font-weight: 600 !important; }
+.signin-panel button[aria-disabled="true"] { cursor: wait; }
+.signin-help { font-size: 0.875rem; line-height: 1.5; color: #4b5563; margin: -4px 0 12px; }
+.signin-error { color: #b91c1c; font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; margin: 4px 0 12px; }
+.signin-show-password { display: flex; gap: 8px; align-items: center; min-height: 44px; font-size: 0.875rem; font-weight: 400 !important; margin-bottom: 8px; cursor: pointer; }
+.signin-show-password input { width: 20px; height: 20px; margin: 0; accent-color: #2563eb; }
+.signin-switch { margin: 16px 0; color: #4b5563; font-size: 0.875rem; }
+.signin-switch button { color: #1d4ed8; background: transparent; border: 0; padding: 0 8px; }
+.signin-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0 24px; color: #4b5563; font-size: 0.875rem; }
+.signin-divider::before, .signin-divider::after { content: ""; height: 1px; background: #d1d5db; flex: 1; }
+.signin-google { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.signin-retry { background: white; color: #1d4ed8; border: 1px solid #9ca3af; border-radius: 6px; padding: 8px 12px; }
+@media (max-width: 600px) { .signin-page { align-items: flex-start; padding-top: 32px; } }

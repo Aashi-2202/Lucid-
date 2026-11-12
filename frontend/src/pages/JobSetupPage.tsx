@@ -124,7 +124,7 @@ export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
                 <input value={folderLink} onChange={event => {setFolderLink(event.target.value); setFolderResult(null);}}
                   required placeholder="https://drive.google.com/drive/folders/..." />
               </label>
-              <p className="setup-help">Recruiter: {recruiter?.email}</p>
+              <p className="setup-help">Recruiter: {recruiter?.email ?? recruiter?.username ?? recruiter?.name}</p>
             </fieldset>
           </section>
           <SkillsEditor skills={skills} onChange={value => {setSkills(value); changed();}} disabled={disabled} />

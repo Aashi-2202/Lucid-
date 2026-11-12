@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import inspect
 
 from app.core.config import settings
 
@@ -28,3 +29,6 @@ async def create_tables():
     """Create all tables. Used at startup for the MVP."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        columns = await conn.run_sync(lambda connection: {c["name"] for c in inspect(connection).get_columns("recruiters")})
+        if not {"username", "password_hash"} <= columns:
+            raise RuntimeError("Database upgrade required. Run python -m app.core.migrate from backend before starting Lucid.")

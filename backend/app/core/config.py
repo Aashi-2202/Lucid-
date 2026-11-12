@@ -7,10 +7,11 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://user:pass@localhost/lucid"
+    database_direct_url: str = ""  # Optional explicit migration connection.
 
     # Google OAuth
     google_client_id: str = ""
-    # Verified Google accounts can register without administrator approval.
+    # Google-verified and username/password accounts may register without approval.
     allow_public_signup: bool = True
     # Auto-approve newly registered, Google-verified accounts listed here.
     approved_recruiter_emails: list[str] = Field(default_factory=list)

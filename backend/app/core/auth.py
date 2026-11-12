@@ -47,7 +47,7 @@ def verify_google_token(token: str) -> dict:
         raise AuthError("Google sign-in is temporarily unavailable. Please try again.", 503) from exc
 
 
-def create_session_token(recruiter_id: int, email: str) -> str:
+def create_session_token(recruiter_id: int, email: str | None = None) -> str:
     """Create a signed JWT session token for the recruiter."""
     now = datetime.now(timezone.utc)
     payload = {

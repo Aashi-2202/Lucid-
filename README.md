@@ -22,6 +22,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate      # Windows
 pip install -r requirements.txt
+python -m app.core.migrate  # Initialize tables / upgrade existing account schema
 python -m app.services.embeddings  # Download and check the pinned ONNX model once
 uvicorn app.main:app --reload --port 8000
 ```
@@ -57,6 +58,12 @@ Keep the actual email list, database URL, service-account key, and JWT secret in
 configuration. A client ID can be public; a client secret is not used by this
 sign-in flow. Test real Google sign-in in your regular browser.
 
+You can also choose **Create account** to use a username and password without a
+Google account or email. Passwords use Argon2id hashes. Upgrade an existing database
+with `python -m app.core.migrate` before starting this version; existing Google
+accounts/jobs are preserved. Password recovery and account linking are not yet
+implemented. See [local accounts](docs/local-accounts.md).
+
 ## Tech Stack
 
 | Component | Technology |
@@ -67,7 +74,7 @@ sign-in flow. Test real Google sign-in in your regular browser.
 | Semantic Retrieval | Sentence Transformers (ONNX Runtime) |
 | Scoring | Deterministic Python + versioned config |
 | Database | Neon PostgreSQL |
-| Auth | Google Identity Services |
+| Auth | Google Identity Services or username/password; Argon2id; signed JWT sessions |
 | File Access | Google Drive API (service account) |
 
 ## Current implementation
@@ -75,7 +82,9 @@ sign-in flow. Test real Google sign-in in your regular browser.
 The [product requirements](docs/product-requirements.md) reconcile the agreed
 workflow with the current stack and distinguish completed features from pending work.
 
-- Verified Google sign-up/sign-in, optional administrator approval, and signed session tokens.
+- Google or username/password sign-up/sign-in, optional administrator approval,
+  and signed session tokens. Local accounts need no email; see
+  [account setup and security details](docs/local-accounts.md).
 - Job drafts, Drive folder access checks, and configurable skill requirements.
 - Delete owned jobs and their saved assessments/results from the Jobs list after
   confirmation. Queued/running assessments block deletion; Drive originals stay unchanged.

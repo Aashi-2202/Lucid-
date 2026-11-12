@@ -19,6 +19,9 @@ model provider, or paid hosting requirement.
 1. Verified Google sign-up/sign-in; account name/email are automatic. Public sign-up
    is enabled by default following the later request to admit new Google accounts;
    administrator approval remains configurable. Each account owns its jobs and results.
+   A subsequent request adds username/password registration and sign-in as an
+   alternative, without a Google account or email. Google remains available;
+   local accounts use a unique username, Argon2id password hash and the same ownership rules.
 2. Create or reopen an owned JD: title, description, Drive folder link, optional company/team.
 3. Share the folder with the app service account as Viewer, copy its email and check access.
 4. Configure requirements, review the folder and requirements, then initiate assessment.

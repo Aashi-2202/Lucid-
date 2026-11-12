@@ -5,14 +5,27 @@ const RECRUITER_KEY = "lucid_recruiter";
 
 export interface RecruiterInfo {
   id: number;
-  email: string;
+  email: string | null;
+  username?: string | null;
   name: string;
   picture: string | null;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
   token: string;
   recruiter: RecruiterInfo;
+}
+
+function storeSession(data: AuthResponse): AuthResponse {
+  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(RECRUITER_KEY, JSON.stringify(data.recruiter));
+  return data;
+}
+
+export async function signInWithPassword(username: string, password: string, register = false): Promise<AuthResponse> {
+  return storeSession(await apiFetch<AuthResponse>(register ? "/auth/register" : "/auth/password", {
+    method: "POST", body: JSON.stringify({ username, password }),
+  }));
 }
 
 /**
@@ -26,10 +39,7 @@ export async function signInWithGoogle(
     body: JSON.stringify({ credential }),
   });
 
-  localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(RECRUITER_KEY, JSON.stringify(data.recruiter));
-
-  return data;
+  return storeSession(data);
 }
 
 /**
