@@ -46,7 +46,8 @@ async def sign_in_with_google(
     Validate a Google ID token and return a session JWT.
 
     - Creates the recruiter account on first sign-in.
-    - Returns 403 if the account is not yet approved.
+    - Open sign-up approves verified accounts, including previously pending ones.
+    - Approval-only mode returns 403 for accounts that are not approved.
     """
     # 1. Verify the Google token
     try:
@@ -66,18 +67,23 @@ async def sign_in_with_google(
     recruiter = result.scalar_one_or_none()
 
     if recruiter is None:
-        # Only explicitly configured, Google-verified emails can bypass approval.
+        # Token verification above is required in both registration modes.
         allowed_emails = {value.strip().casefold() for value in settings.approved_recruiter_emails}
         recruiter = Recruiter(
             google_id=google_id,
             email=email,
             name=name,
             picture=picture,
-            approved=email.strip().casefold() in allowed_emails,
+            approved=settings.allow_public_signup or email.strip().casefold() in allowed_emails,
         )
         db.add(recruiter)
         await db.commit()
         await db.refresh(recruiter)
+
+    # An account may have registered while approval-only mode was enabled.
+    # Approve it only after a fresh, successful Google identity verification.
+    if settings.allow_public_signup and not recruiter.approved:
+        recruiter.approved = True
 
     # 3. Check approval
     if not recruiter.approved:

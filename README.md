@@ -44,11 +44,16 @@ JavaScript origin. This button uses a JavaScript callback, so it does not need
 a redirect URI. Keep `VITE_API_URL=/api` locally so Vite forwards requests to
 the backend. Restart both servers after changing environment variables.
 
-New accounts require administrator approval by default. To approve selected
-first-time users after Google verifies their email, configure the backend's
-`APPROVED_RECRUITER_EMAILS` as a JSON array, such as `["recruiter@example.com"]`.
-This does not reapprove previously disabled accounts. Keep the actual email
-list, database URL, service-account key, and JWT secret in ignored local
+`ALLOW_PUBLIC_SIGNUP=true` is the default: any verified Google account can
+register and sign in immediately. Accounts previously waiting for approval are
+approved on their next successful Google sign-in. Each recruiter can access only
+their own jobs and assessments.
+
+For administrator approval instead, set `ALLOW_PUBLIC_SIGNUP=false`. In that
+mode, `APPROVED_RECRUITER_EMAILS` is a JSON array of emails to approve on first
+registration, such as `["recruiter@example.com"]`; existing unapproved accounts
+stay unapproved. Changing this setting does not revoke already approved accounts.
+Keep the actual email list, database URL, service-account key, and JWT secret in ignored local
 configuration. A client ID can be public; a client secret is not used by this
 sign-in flow. Test real Google sign-in in your regular browser.
 
@@ -70,7 +75,7 @@ sign-in flow. Test real Google sign-in in your regular browser.
 The [product requirements](docs/product-requirements.md) reconcile the agreed
 workflow with the current stack and distinguish completed features from pending work.
 
-- Google sign-in, approved recruiter accounts, and signed session tokens.
+- Verified Google sign-up/sign-in, optional administrator approval, and signed session tokens.
 - Job drafts, Drive folder access checks, and configurable skill requirements.
 - All seven requirement controls are available before creating a job: suggested
   or custom skills, description, mandatory checkbox, importance, evidence level,

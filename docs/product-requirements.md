@@ -16,7 +16,9 @@ model provider, or paid hosting requirement.
 
 ## Recruiter workflow
 
-1. Google sign-in, restricted to approved recruiters; account name/email are automatic.
+1. Verified Google sign-up/sign-in; account name/email are automatic. Public sign-up
+   is enabled by default following the later request to admit new Google accounts;
+   administrator approval remains configurable. Each account owns its jobs and results.
 2. Create or reopen an owned JD: title, description, Drive folder link, optional company/team.
 3. Share the folder with the app service account as Viewer, copy its email and check access.
 4. Configure requirements, review the folder and requirements, then initiate assessment.

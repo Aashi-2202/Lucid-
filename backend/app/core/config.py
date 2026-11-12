@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     # Google OAuth
     google_client_id: str = ""
+    # Verified Google accounts can register without administrator approval.
+    allow_public_signup: bool = True
     # Auto-approve newly registered, Google-verified accounts listed here.
     approved_recruiter_emails: list[str] = Field(default_factory=list)
 

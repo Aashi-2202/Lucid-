@@ -72,11 +72,14 @@ class SignInTests(QueueTestCase):
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
         self.secret = patch.object(settings, "jwt_secret", "auth-test-secret-" * 5)
         self.secret.start()
+        self.signup = patch.object(settings, "allow_public_signup", False)
+        self.signup.start()
 
     async def asyncTearDown(self):
         await self.client.aclose()
         app.dependency_overrides.clear()
         self.secret.stop()
+        self.signup.stop()
         await super().asyncTearDown()
 
     async def sign_in(self, email="allowed@example.test", sub="new-google-user"):
@@ -102,6 +105,33 @@ class SignInTests(QueueTestCase):
         async with self.sessions() as db:
             account = (await db.execute(select(Recruiter).where(Recruiter.google_id == "new-google-user"))).scalar_one()
             self.assertFalse(account.approved)
+
+    async def test_public_signup_registers_unlisted_account_and_preserves_identity(self):
+        with patch.object(settings, "allow_public_signup", True), patch.object(settings, "approved_recruiter_emails", []):
+            response = await self.sign_in()
+            self.assertEqual(response.status_code, 200, response.text)
+            repeat = await self.sign_in()
+        self.assertEqual(repeat.json()["recruiter"]["id"], response.json()["recruiter"]["id"])
+        headers = {"Authorization": "Bearer " + response.json()["token"]}
+        self.assertEqual((await self.client.get("/auth/me", headers=headers)).status_code, 200)
+        self.assertEqual((await self.client.get("/jobs", headers=headers)).json(), [])
+        self.assertEqual((await self.client.get("/jobs/1", headers=headers)).status_code, 403)
+
+    async def test_public_signup_approves_existing_pending_account_on_verified_login(self):
+        with patch.object(settings, "allow_public_signup", True):
+            response = await self.sign_in("three@example.test", "three")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["recruiter"]["id"], 3)
+        async with self.sessions() as db:
+            self.assertTrue((await db.get(Recruiter, 3)).approved)
+
+    async def test_public_signup_does_not_approve_pending_account_with_invalid_token(self):
+        with patch.object(settings, "allow_public_signup", True), patch("app.routes.auth.verify_google_token", side_effect=AuthError("Invalid token")):
+            response = await self.client.post("/auth/google", json={"credential": "invalid"})
+        self.assertEqual(response.status_code, 401)
+        async with self.sessions() as db:
+            self.assertFalse((await db.get(Recruiter, 3)).approved)
+            self.assertEqual(len((await db.execute(select(Recruiter))).scalars().all()), 3)
 
     async def test_existing_unapproved_account_is_not_silently_reapproved(self):
         with patch.object(settings, "approved_recruiter_emails", ["three@example.test"]):
