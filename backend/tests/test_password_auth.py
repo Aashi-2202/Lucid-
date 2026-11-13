@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+import hashlib
 from unittest.mock import patch
 
 import httpx
@@ -10,13 +11,14 @@ from app.core.auth import create_session_token, decode_session_token
 from app.core.config import settings
 from app.core.database import get_db
 from app.main import app
-from app.models import Recruiter
+from app.models import Recruiter, EmailVerification
+from app.routes.auth import code_digest
 from queue_helpers import QueueTestCase
 
-PASSWORD = "correct horse battery staple"
+PASSWORD = "correct horse battery staple!"
 
 
-class PasswordAccountsTests(QueueTestCase):
+class PasswordAccountCase(QueueTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         async def test_db():
@@ -25,12 +27,17 @@ class PasswordAccountsTests(QueueTestCase):
         app.dependency_overrides[get_db] = test_db
         self.patches = [patch.object(settings, "allow_public_signup", True),
                         patch.object(settings, "jwt_secret", "test-password-session-" * 5),
-                        patch.object(passwords, "throttle", passwords.AuthThrottle())]
+                        patch.object(passwords, "throttle", passwords.AuthThrottle()),
+                        patch("app.services.verification_email.configured",return_value=True)]
         for item in self.patches:
             item.start()
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+        self.sent=[]
+        self.mail=patch("app.services.verification_email.send_verification",side_effect=lambda email,code:self.sent.append((email,code)))
+        self.mail.start()
 
     async def asyncTearDown(self):
+        self.mail.stop()
         await self.client.aclose()
         app.dependency_overrides.clear()
         for item in reversed(self.patches):
@@ -38,23 +45,34 @@ class PasswordAccountsTests(QueueTestCase):
         await super().asyncTearDown()
 
     async def register(self, username="recruiter.local", password=PASSWORD):
-        return await self.client.post("/auth/register", json={"username": username, "password": password})
+        email=hashlib.sha256(username.strip().lower().encode()).hexdigest()[:20]+"@gmail.com"
+        response=await self.client.post("/auth/register", json={"username": username, "password": password,"email":email})
+        if response.status_code!=202:
+            return response
+        challenge_id=response.json()["challenge_id"]
+        async with self.sessions() as db:
+            challenge=await db.get(EmailVerification,challenge_id)
+            code=next(code for target,code in reversed(self.sent) if target==email and code_digest(challenge_id,email,code)==challenge.code_digest)
+        return await self.client.post("/auth/register/verify",json={"challenge_id":challenge_id,"code":code})
 
     async def login(self, username="recruiter.local", password=PASSWORD):
         return await self.client.post("/auth/password", json={"username": username, "password": password})
 
-    async def test_register_login_and_use_owned_job_without_google_or_email(self):
+
+class PasswordAccountsTests(PasswordAccountCase):
+    async def test_register_verify_login_and_use_owned_job_without_google_signin(self):
         created = await self.register(" Recruiter.Local ")
         self.assertEqual(created.status_code, 201, created.text)
         info = created.json()["recruiter"]
         self.assertEqual(info["username"], "recruiter.local")
-        self.assertIsNone(info["email"])
+        self.assertTrue(info["email"].endswith("@gmail.com"))
         self.assertNotIn("password", created.text)
         token = created.json()["token"]
         self.assertEqual(decode_session_token(token)["sub"], str(info["id"]))
         async with self.sessions() as db:
             account = await db.get(Recruiter, info["id"])
             self.assertIsNone(account.google_id)
+            self.assertIsNotNone(account.email_verified_at)
             self.assertTrue(account.password_hash.startswith("$argon2id$"))
             self.assertNotIn(PASSWORD, account.password_hash)
         login = await self.login("RECRUITER.LOCAL")
@@ -66,7 +84,7 @@ class PasswordAccountsTests(QueueTestCase):
         job = await self.client.post("/jobs", headers=headers, json={"title":"Local recruiter job", "description":"Build APIs",
             "folder_link":"https://drive.google.com/drive/folders/synthetic_folder", "skills":[{"skill":"Python"}]})
         self.assertEqual(job.status_code, 201, job.text)
-        self.assertIsNone(job.json()["recruiter_email"])
+        self.assertEqual(job.json()["recruiter_email"],info["email"])
         self.assertEqual((await self.client.delete(f'/jobs/{job.json()["id"]}', headers=headers)).status_code, 204)
 
     async def test_duplicate_and_concurrent_case_variants_do_not_create_extra_accounts(self):
@@ -86,7 +104,7 @@ class PasswordAccountsTests(QueueTestCase):
             self.assertNotIn("token", response.json())
 
     async def test_validation_never_echoes_password_and_does_not_create_account(self):
-        cases = [("valid.user", "too-short"), ("valid.user", "private-" * 20),
+        cases = [("valid.user", "short!"), ("valid.user", "nospecialcharacter"), ("valid.user", "private-" * 20),
                  ("bad@username", PASSWORD), ("xx", PASSWORD), ("valid.user", ""), ("valid.user", " " * 12)]
         for username, password in cases:
             response = await self.register(username, password)
@@ -100,7 +118,7 @@ class PasswordAccountsTests(QueueTestCase):
             self.assertEqual(len((await db.execute(select(Recruiter))).scalars().all()), 3)
 
     async def test_password_spaces_and_unicode_are_preserved(self):
-        secret = "  café passphrase 🍀  "
+        secret = "  café passphrase 🍀!  "
         self.assertEqual((await self.register(password=secret)).status_code, 201)
         self.assertEqual((await self.login(password=secret.strip())).status_code, 401)
         self.assertEqual((await self.login(password=secret)).status_code, 200)
@@ -133,7 +151,7 @@ class PasswordAccountsTests(QueueTestCase):
         # A spoofed forwarding header cannot reset the resolved-peer bucket.
         for i in range(10):
             self.assertEqual((await self.register(f"user{i}")).status_code, 201)
-        blocked = await self.client.post("/auth/register", headers={"X-Forwarded-For":"198.51.100.1"}, json={"username":"another.user","password":PASSWORD})
+        blocked = await self.client.post("/auth/register", headers={"X-Forwarded-For":"198.51.100.1"}, json={"username":"another.user","password":PASSWORD,"email":"another.user@gmail.com"})
         self.assertEqual(blocked.status_code, 429)
 
 

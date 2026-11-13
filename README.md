@@ -59,7 +59,10 @@ configuration. A client ID can be public; a client secret is not used by this
 sign-in flow. Test real Google sign-in in your regular browser.
 
 You can also choose **Create account** to use a username and password without a
-Google account or email. Passwords use Argon2id hashes. Upgrade an existing database
+Google sign-in. New accounts link a Gmail address using a six-digit email code;
+passwords require 8–128 characters and at least one special character. Configure
+the backend SMTP sender before enabling this flow. Passwords use Argon2id hashes.
+Upgrade an existing database
 with `python -m app.core.migrate` before starting this version; existing Google
 accounts/jobs are preserved. Password recovery and account linking are not yet
 implemented. See [local accounts](docs/local-accounts.md).
@@ -83,7 +86,8 @@ The [product requirements](docs/product-requirements.md) reconcile the agreed
 workflow with the current stack and distinguish completed features from pending work.
 
 - Google or username/password sign-up/sign-in, optional administrator approval,
-  and signed session tokens. Local accounts need no email; see
+  and signed session tokens. New username accounts require Gmail verification;
+  legacy accounts keep working. See
   [account setup and security details](docs/local-accounts.md).
 - Job drafts, Drive folder access checks, and configurable skill requirements.
 - Optional Additional competencies: communication, leadership/influence, problem

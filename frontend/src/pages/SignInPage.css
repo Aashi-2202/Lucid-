@@ -21,4 +21,7 @@
 .signin-divider::before, .signin-divider::after { content: ""; height: 1px; background: #d1d5db; flex: 1; }
 .signin-google { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .signin-retry { background: white; color: #1d4ed8; border: 1px solid #9ca3af; border-radius: 6px; padding: 8px 12px; }
+.signin-verification-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+.signin-panel button:disabled { cursor:default; }
+.signin-panel .signin-retry:disabled { color:#6b7280; background:#f3f4f6; }
 @media (max-width: 600px) { .signin-page { align-items: flex-start; padding-top: 32px; } }

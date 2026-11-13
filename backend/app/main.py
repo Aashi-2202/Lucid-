@@ -41,10 +41,10 @@ app = FastAPI(
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path in ("/auth/register", "/auth/password"):
+    if request.url.path.startswith("/auth/register") or request.url.path == "/auth/password":
         # Default validation errors can echo submitted input, including passwords.
         return JSONResponse(status_code=422, content={"detail":
-            "Use a username of 3–40 letters, numbers, dots, underscores or hyphens, starting with a letter or number. Passwords can be at most 128 characters."})
+            "Check your signup details: use a valid username, Gmail address, an 8–128 character password with a special character, and a six-digit code when requested."})
     return await request_validation_exception_handler(request, exc)
 
 # CORS — allow frontend to call backend

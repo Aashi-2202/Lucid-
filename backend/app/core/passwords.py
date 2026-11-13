@@ -1,6 +1,7 @@
 """Local password hashing and bounded, single-process authentication throttles."""
 from threading import BoundedSemaphore
 from time import monotonic
+import string
 
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError
@@ -52,3 +53,8 @@ class AuthThrottle:
 
 
 throttle = AuthThrottle()
+
+
+def valid_new_password(password: str) -> bool:
+    """New registrations only; existing passwords retain their login semantics."""
+    return 8 <= len(password) <= 128 and any(char in string.punctuation for char in password)

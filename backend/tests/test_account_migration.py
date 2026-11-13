@@ -32,7 +32,8 @@ class AccountMigrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(columns["google_id"]["nullable"])
                     self.assertTrue(columns["email"]["nullable"])
                     await conn.execute(text("INSERT INTO recruiters (name, username, password_hash, approved) VALUES ('Local', 'local.user', 'fixture-hash', 1)"))
-                    self.assertEqual(await conn.scalar(text("SELECT version_num FROM alembic_version")), "0002_additional_competencies")
+                    self.assertEqual(await conn.scalar(text("SELECT version_num FROM alembic_version")), "0003_email_verification")
+                    self.assertIsNone(await conn.scalar(text("SELECT email_verified_at FROM recruiters WHERE id=1")))
                     self.assertEqual((await conn.execute(text("PRAGMA foreign_key_check"))).all(), [])
             finally:
                 await engine.dispose()

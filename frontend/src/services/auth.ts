@@ -16,16 +16,30 @@ export interface AuthResponse {
   recruiter: RecruiterInfo;
 }
 
+export interface VerificationChallenge { challenge_id: string; expires_in: number; resend_after: number }
+
 function storeSession(data: AuthResponse): AuthResponse {
   localStorage.setItem(TOKEN_KEY, data.token);
   localStorage.setItem(RECRUITER_KEY, JSON.stringify(data.recruiter));
   return data;
 }
 
-export async function signInWithPassword(username: string, password: string, register = false): Promise<AuthResponse> {
-  return storeSession(await apiFetch<AuthResponse>(register ? "/auth/register" : "/auth/password", {
+export async function signInWithPassword(username: string, password: string): Promise<AuthResponse> {
+  return storeSession(await apiFetch<AuthResponse>("/auth/password", {
     method: "POST", body: JSON.stringify({ username, password }),
   }));
+}
+
+export function requestRegistration(username:string,password:string,email:string):Promise<VerificationChallenge> {
+  return apiFetch("/auth/register",{method:"POST",body:JSON.stringify({username,password,email})});
+}
+
+export function resendVerification(challenge_id:string):Promise<VerificationChallenge> {
+  return apiFetch("/auth/register/resend",{method:"POST",body:JSON.stringify({challenge_id})});
+}
+
+export async function verifyRegistration(challenge_id:string,code:string):Promise<AuthResponse> {
+  return storeSession(await apiFetch<AuthResponse>("/auth/register/verify",{method:"POST",body:JSON.stringify({challenge_id,code})}));
 }
 
 /**

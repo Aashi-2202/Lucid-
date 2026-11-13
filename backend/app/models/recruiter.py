@@ -18,6 +18,7 @@ class Recruiter(Base):
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     username: Mapped[str | None] = mapped_column(String(40), unique=True, index=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     picture: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)

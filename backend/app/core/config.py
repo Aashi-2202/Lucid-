@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, SecretStr
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -26,6 +27,14 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 480  # 8 hours
+
+    # Verification email delivery. Never expose credentials to the frontend.
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_security: Literal["starttls", "ssl"] = "starttls"
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from_email: str = ""
 
     # Model
     embedding_model: str = "all-MiniLM-L6-v2"
