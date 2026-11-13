@@ -23,6 +23,7 @@ from app.schemas.assessments import AssessmentProgress, IntakeSnapshot, ResumeDo
 from app.services.mandatory_gate import GateRequirement
 from app.services.analysis import ANALYSIS_VERSION
 from app.services.match_summary import SUMMARY_VERSION
+from app.services.export_filename import export_disposition
 
 
 router = APIRouter(tags=["assessments"])
@@ -242,7 +243,7 @@ async def export_results(assessment_id: UUID, recruiter: Recruiter = Depends(get
     writer.writerow(["Rank", "Resume", "Resume match score", "Assessment complete", "Job Match Summary"])
     for row in await result_rows(run, db):
         writer.writerow([row["rank"], csv_cell(row["name"]), row["score"], row["complete"], csv_cell(row["job_match_summary"])])
-    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=lucid-results.csv"})
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": export_disposition(run.snapshot.get("title", ""))})
 
 
 @router.get("/assessments/{assessment_id}/files/{file_id}", response_model=FileDetail)

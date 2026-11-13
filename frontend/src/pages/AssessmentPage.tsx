@@ -54,7 +54,7 @@ export default function AssessmentPage({assessmentId,onBack}:Props) {
     try{const value=await getFile(assessmentId,id);if(request===detailRequest.current)setDetail(value)}catch(err){if(request===detailRequest.current)setDetailError(err instanceof Error?err.message:"Could not load resume details.")}
     finally{if(request===detailRequest.current)setDetailBusy(false)}
   }
-  async function exportCsv(){setExporting(true);try{await downloadResults(assessmentId)}catch(err){setError(err instanceof Error?err.message:"Export failed.")}finally{setExporting(false)}}
+  async function exportCsv(){setExporting(true);try{await downloadResults(assessmentId,snapshot?.title)}catch(err){setError(err instanceof Error?err.message:"Export failed.")}finally{setExporting(false)}}
   const selected=files.filter(file=>view==="excluded"?file.status==="excluded":view==="failed"?file.status==="failed":file.status==="ready_for_analysis");
   const busy=run?active(run):true;
   return <main className="job-setup assessment-page">

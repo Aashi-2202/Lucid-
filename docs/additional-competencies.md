@@ -37,6 +37,10 @@ each technical requirement's evidence alignment/gaps and each selected additiona
 competency. All text is a deterministic paraphrase/template, not a quotation from
 the resume or an assertion that the candidate should be selected.
 
+Downloads use the assessment's saved job title, for example
+`AI Engineer-results.csv`. Unsafe filename characters are removed, Unicode titles
+are preserved, and renaming the job later does not relabel an older assessment.
+
 For example:
 
 > Technical requirements — Python: application; meets requested evidence.

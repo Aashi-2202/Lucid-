@@ -173,8 +173,13 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual([row["score"] for row in rows],[75,75])
         other=await self.client.get(f"/assessments/{run_id}/results",headers=self.auth(2))
         self.assertEqual(other.status_code,404)
+        async with self.sessions.begin() as db:
+            job=await db.get(Job,1)
+            job.title="Renamed after assessment"
         export=await self.client.get(f"/assessments/{run_id}/export",headers=self.headers)
         self.assertEqual(export.status_code,200)
+        self.assertIn('filename="Backend developer-results.csv"',export.headers["Content-Disposition"])
+        self.assertIn("filename*=UTF-8''Backend%20developer-results.csv",export.headers["Content-Disposition"])
         self.assertEqual(len(export.text.splitlines()),3)
         detail=(await self.client.get(f"/assessments/{run_id}/files/{rows[0]['file_id']}",headers=self.headers)).json()
         self.assertEqual(detail["document"]["analysis"]["skills"][0]["evidence_level"],3)

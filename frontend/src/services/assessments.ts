@@ -1,5 +1,6 @@
 import { apiFetch, API_BASE } from "./api";
 import { getToken } from "./auth";
+import { resultsFilename } from "./exportFilename";
 
 export interface RunProgress {
   id:string; job_id:number; status:"queued"|"running"|"screened"|"completed"|"failed";
@@ -31,10 +32,11 @@ export async function getFiles(id:string):Promise<FileOutcome[]> {
   }
   return files;
 }
-export async function downloadResults(id:string) {
+export async function downloadResults(id:string,jobTitle?:string) {
+  const filename=resultsFilename(jobTitle ?? (await getSnapshot(id)).title);
   const response=await fetch(`${API_BASE}/assessments/${id}/export`,{signal:AbortSignal.timeout(30000),headers:{Authorization:`Bearer ${getToken()}`}});
   if (!response.ok) throw new Error("Could not export results. Please try again after the assessment finishes.");
   const url=URL.createObjectURL(await response.blob());
-  const link=document.createElement("a"); link.href=url;link.download="lucid-results.csv";link.click();
+  const link=document.createElement("a"); link.href=url;link.download=filename;link.click();
   window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
