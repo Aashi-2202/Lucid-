@@ -32,7 +32,25 @@ class AccountMigrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(columns["google_id"]["nullable"])
                     self.assertTrue(columns["email"]["nullable"])
                     await conn.execute(text("INSERT INTO recruiters (name, username, password_hash, approved) VALUES ('Local', 'local.user', 'fixture-hash', 1)"))
-                    self.assertEqual(await conn.scalar(text("SELECT version_num FROM alembic_version")), "0001_password_accounts")
+                    self.assertEqual(await conn.scalar(text("SELECT version_num FROM alembic_version")), "0002_additional_competencies")
                     self.assertEqual((await conn.execute(text("PRAGMA foreign_key_check"))).all(), [])
             finally:
                 await engine.dispose()
+
+    async def test_existing_job_gets_empty_competencies_without_changing_details(self):
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text('''CREATE TABLE jobs (
+                    id INTEGER PRIMARY KEY, recruiter_id INTEGER NOT NULL,
+                    title VARCHAR(255) NOT NULL, description TEXT NOT NULL,
+                    folder_link VARCHAR(1024) NOT NULL, folder_id VARCHAR(255) NOT NULL,
+                    folder_name VARCHAR(512), folder_pdf_count INTEGER, company VARCHAR(255),
+                    status VARCHAR(20) NOT NULL DEFAULT 'draft', created_at DATETIME, updated_at DATETIME)'''))
+                await conn.execute(text("INSERT INTO jobs (id,recruiter_id,title,description,folder_link,folder_id) VALUES (7,1,'Keep title','Keep description','folder','folder')"))
+                await conn.run_sync(upgrade_connection)
+                await conn.run_sync(upgrade_connection)
+                row = (await conn.execute(text("SELECT id,title,description,additional_competencies FROM jobs"))).one()
+                self.assertEqual(tuple(row),(7,"Keep title","Keep description","[]"))
+        finally:
+            await engine.dispose()

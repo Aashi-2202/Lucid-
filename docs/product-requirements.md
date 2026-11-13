@@ -90,6 +90,13 @@ These categories describe resume claims, not verified competence.
 
 ## Persistence, hosting and delivery boundaries
 
+Optional **Additional competencies** now supplies reporting-only nontechnical
+mentions and activity signals. It never adds bonus points, score weights,
+mandatory gates or missing-evidence penalties. DSA stays a scored technical
+requirement. New assessments include technical and nontechnical alignment/gaps
+in the **Job Match Summary** CSV column, using brief paraphrases without resume
+quotations. See [behavior and limitations](additional-competencies.md).
+
 Neon now supplies the persistent storage left undecided in the earlier briefing.
 The implemented durable intake queue extends the earlier interrupted-run design
 with checkpoint/restart recovery; it does not establish hosted unattended completion.

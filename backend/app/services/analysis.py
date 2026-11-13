@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.mandatory_gate import GateRequirement, check_mandatory_skills
 from app.services.processing_errors import ResumeProcessingError
+from app.services.match_summary import CompetencyFinding, SUMMARY_VERSION, competency_findings, job_match_summary
 
 ANALYSIS_VERSION = "resume-evidence-v2"
 LEGACY_ANALYSIS_VERSION = "resume-evidence-v1"
@@ -46,6 +47,9 @@ class AnalysisResult(BaseModel):
     skills: list[SkillAssessment]
     sections: dict[str, list[Evidence]]
     extracted_skills: list[str]
+    summary_version: str | None = None
+    job_match_summary: str | None = None
+    additional_competencies: list[CompetencyFinding] = Field(default_factory=list)
 
 
 _HEADINGS = {
@@ -291,6 +295,11 @@ def analyse(document, snapshot, encoder=None):
     weighted = [r for r in results if r.assessment_method == "resume"]
     score = round(100 * sum(r.importance * r.skill_credit for r in weighted) / sum(r.importance for r in weighted), 2) if weighted else None
     sections = {key:[p for p in entries if p.section == key] for key in ("projects", "education", "coursework", "experience", "internships")}
+    reporting = snapshot.summary_version == SUMMARY_VERSION
+    findings = competency_findings(entries, snapshot.additional_competencies) if reporting else []
     return AnalysisResult(version=snapshot.analysis_version, model=MODEL_REPO, model_revision=MODEL_REVISION, model_file=MODEL_FILE,
                           score=score, complete=complete, skills=results, sections=sections,
-                          extracted_skills=[r.skill for r in results if r.match_type == "explicit"])
+                          extracted_skills=[r.skill for r in results if r.match_type == "explicit"],
+                          summary_version=SUMMARY_VERSION if reporting else None,
+                          job_match_summary=job_match_summary(results, findings) if reporting else None,
+                          additional_competencies=findings)

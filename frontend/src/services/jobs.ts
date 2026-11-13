@@ -25,6 +25,7 @@ export interface JobDetail {
   recruiter_email: string | null;
   status: string;
   skills: SkillRequirement[];
+  additional_competencies: string[];
 }
 
 export interface CreateJobInput {
@@ -33,6 +34,7 @@ export interface CreateJobInput {
   folder_link: string;
   company?: string | null;
   skills?: Omit<SkillRequirement, "id">[];
+  additional_competencies?: string[];
 }
 
 export interface FolderCheckResult {

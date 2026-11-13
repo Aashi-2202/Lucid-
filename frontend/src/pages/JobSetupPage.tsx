@@ -6,6 +6,8 @@ import { newSkillDraft, skillInputs } from "../services/skillDrafts";
 import type { SkillDraft } from "../services/skillDrafts";
 import { useAuth } from "../components/AuthProvider";
 import SkillsEditor from "../components/SkillsEditor";
+import CompetenciesEditor from "../components/CompetenciesEditor";
+import { competencyInputs } from "../services/competencies";
 import AssessmentLaunch from "../components/AssessmentLaunch";
 import "./AssessmentPage.css";
 import "./JobSetupPage.css";
@@ -20,6 +22,7 @@ export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
   const [company, setCompany] = useState("");
   const [savedJob, setSavedJob] = useState<JobDetail | null>(null);
   const [skills, setSkills] = useState<SkillDraft[]>(() => [newSkillDraft()]);
+  const [competencies, setCompetencies] = useState<string[]>([]);
   const [folderResult, setFolderResult] = useState<FolderCheckResult | null>(null);
   const [checkingFolder, setCheckingFolder] = useState(false);
   const [saEmail, setSaEmail] = useState("");
@@ -43,6 +46,7 @@ export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
         setSavedJob(job); setTitle(job.title); setDescription(job.description);
         setFolderLink(job.folder_link); setCompany(job.company ?? "");
         setSkills(job.skills.map(newSkillDraft));
+        setCompetencies(job.additional_competencies ?? []);
         if (job.folder_name) setFolderResult({success:true, folder_name:job.folder_name, pdf_count:job.folder_pdf_count, error:null});
         setError(null); setDirty(false);
       }).catch((err: unknown) => {
@@ -67,13 +71,14 @@ export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setError(null); setMessage("");
     try {
-      const input = { title:title.trim(), description:description.trim(), folder_link:folderLink.trim(), company:company.trim() || null, skills:skillInputs(skills) };
+      const input = { title:title.trim(), description:description.trim(), folder_link:folderLink.trim(), company:company.trim() || null, skills:skillInputs(skills), additional_competencies:competencyInputs(competencies) };
       if (!input.title || !input.description || !input.folder_link) throw new Error("Enter a job title, description, and Drive folder link.");
       const job = savedJob ? await updateJob(savedJob.id, input) : await createJob(input);
       const folderChanged = savedJob?.folder_link !== job.folder_link;
       setSavedJob(job); setTitle(job.title); setDescription(job.description); setCompany(job.company ?? ""); setFolderLink(job.folder_link);
+      setCompetencies(job.additional_competencies ?? []);
       // Preserve stable row keys and open matching settings after saving.
-      setDirty(false); setMessage("Job details and skill requirements saved.");
+      setDirty(false); setMessage("Job details, requirements and additional competencies saved.");
       if (folderChanged) setFolderResult(null);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save the job. Your changes are still here."); }
     finally { savingRef.current = false; setSaving(false); }
@@ -128,6 +133,7 @@ export default function JobSetupPage({ jobId, onBack, onAssessment }: Props) {
             </fieldset>
           </section>
           <SkillsEditor skills={skills} onChange={value => {setSkills(value); changed();}} disabled={disabled} />
+          <CompetenciesEditor values={competencies} onChange={value => {setCompetencies(value); changed();}} disabled={disabled} />
           {isDraft && <div className="setup-actions">
             <button type="submit" disabled={saving} aria-busy={saving} className="setup-primary">{savedJob ? "Save changes" : "Create Job"}</button>
             <span role="status">{saving ? "Saving…" : message || (dirty ? "Unsaved changes" : "")}</span>

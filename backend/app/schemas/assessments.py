@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.pdf import PdfLimits
 from app.services.analysis import AnalysisResult
+from app.schemas.competencies import CompetencyName, clean_competencies
 
 
 class FrozenModel(BaseModel):
@@ -40,6 +41,10 @@ class IntakeSnapshot(FrozenModel):
     embedding_model: str
     relevance_thresholds: list[float] = Field(min_length=4, max_length=4)
     analysis_version: Literal["resume-evidence-v1", "resume-evidence-v2"] | None = None
+    summary_version: Literal["job-match-summary-v1"] | None = None
+    additional_competencies: list[CompetencyName] = Field(default_factory=list, max_length=20)
+
+    _clean_competencies = field_validator("additional_competencies")(clean_competencies)
     as_of_date: str = "1970-01-01"
     embedding_revision: Literal["1110a243fdf4706b3f48f1d95db1a4f5529b4d41"] = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
     embedding_file: Literal["onnx/model_quint8_avx2.onnx"] = "onnx/model_quint8_avx2.onnx"

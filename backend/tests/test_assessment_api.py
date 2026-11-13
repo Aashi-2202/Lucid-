@@ -77,10 +77,14 @@ class AssessmentApiTests(QueueTestCase):
                 self.assertEqual(response.status_code, 404)
 
     async def test_snapshot_does_not_change_with_draft(self):
+        async with self.sessions.begin() as db:
+            job = await db.get(Job, 1)
+            job.additional_competencies = ["Communication"]
         run_id = (await self.start()).json()["id"]
         async with self.sessions.begin() as db:
             job = await db.get(Job, 1)
             job.title = "Changed draft"
+            job.additional_competencies = ["Learning Agility"]
             skill = (await db.execute(select(SkillRequirement).where(SkillRequirement.job_id == 1))).scalar_one()
             skill.importance = 1
         response = await self.client.get(f"/assessments/{run_id}/snapshot", headers=self.headers)
@@ -88,6 +92,8 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual(response.json()["skills"][0]["importance"], 5)
         self.assertIn("pdf_limits", response.json())
         self.assertEqual(response.json()["analysis_version"], "resume-evidence-v2")
+        self.assertEqual(response.json()["summary_version"], "job-match-summary-v1")
+        self.assertEqual(response.json()["additional_competencies"], ["Communication"])
 
     async def test_progress_counts_and_excluded_file_privacy(self):
         run_id = (await self.start()).json()["id"]
@@ -185,6 +191,35 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual(csv_cell("=HYPERLINK(test)"),"'=HYPERLINK(test)")
         self.assertEqual(csv_cell("   +test"),"'   +test")
         self.assertEqual(csv_cell("resume.pdf"),"resume.pdf")
+
+    async def test_summary_is_saved_exposed_and_exported_without_quotes(self):
+        import csv
+        import io
+        from app.schemas.assessments import Ready
+        from app.services.analysis import analyse
+        from test_analysis import document, exact_encoder
+        async with self.sessions.begin() as db:
+            job=await db.get(Job,1)
+            job.additional_competencies=["Communication","Learning Agility"]
+        run_id=(await self.start()).json()["id"]
+        claim=await claim_next(self.sessions)
+        await save_outcome(self.sessions,claim,discovery("a"))
+        claim=await claim_next(self.sessions)
+        quote="Presented quarterly forecasting findings to client stakeholders in weekly reviews."
+        doc=document("Projects\nBuilt Python reporting services. "+quote)
+        analysis=analyse(doc,claim.request.snapshot,encoder=exact_encoder)
+        await save_outcome(self.sessions,claim,Ready(document=doc.model_copy(update={"analysis":analysis})))
+        results=(await self.client.get(f"/assessments/{run_id}/results",headers=self.headers)).json()
+        row=results["rows"][0]
+        self.assertIn("Communication:",row["job_match_summary"])
+        self.assertNotIn(quote,row["job_match_summary"])
+        exported=await self.client.get(f"/assessments/{run_id}/export",headers=self.headers)
+        records=list(csv.DictReader(io.StringIO(exported.text)))
+        self.assertEqual(records[0]["Job Match Summary"],row["job_match_summary"])
+        self.assertIn("Python:",records[0]["Job Match Summary"])
+        self.assertIn("Learning Agility: Not evidenced",records[0]["Job Match Summary"])
+        detail=(await self.client.get(f"/assessments/{run_id}/files/{row['file_id']}",headers=self.headers)).json()
+        self.assertEqual(detail["document"]["analysis"]["additional_competencies"][0]["status"],"supporting_activity")
 
     async def test_terminal_undetermined_evidence_stays_provisional(self):
         from app.schemas.assessments import Ready

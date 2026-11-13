@@ -29,6 +29,10 @@
 .skill-options, .skill-sliders { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1.5rem; }
 .mandatory-control { display: flex; align-items: center; gap: .5rem; min-height: 2.75rem; width: fit-content; cursor: pointer; font-size: .9rem; font-weight: 500; }
 .mandatory-control input { width: 1.125rem; height: 1.125rem; accent-color: var(--setup-accent); }
+.competency-legend { font-size: .9rem; font-weight: 500; color: #374151; margin-bottom: .5rem; }
+.competency-choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .25rem 1rem; margin-bottom: 1rem; }
+.competency-choices .mandatory-control { width: 100%; overflow-wrap: anywhere; }
+.competency-choices input { flex-shrink: 0; }
 .matching-settings { border-top: 1px solid #e5e7eb; padding-top: .5rem; }
 .matching-settings summary { min-height: 2.75rem; padding: .75rem 0; cursor: pointer; color: #1d4ed8; font-size: .9rem; overflow-wrap: anywhere; }
 .matching-settings .setup-field { margin-top: .5rem; }
@@ -54,6 +58,7 @@
   .job-setup { padding: 1rem; }
   .setup-section { padding: 1rem; }
   .skill-options, .skill-sliders { grid-template-columns: minmax(0,1fr); gap: .5rem; }
+  .competency-choices { grid-template-columns: minmax(0,1fr); }
   .skill-heading { flex-direction: column; gap: 0; }
   .skill-heading .setup-field { width: 100%; }
   .remove-skill { margin: -.5rem 0 .5rem; }

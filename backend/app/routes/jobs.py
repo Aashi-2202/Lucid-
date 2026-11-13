@@ -12,6 +12,7 @@ from app.models.job import Job, extract_folder_id
 from app.models.assessment import Assessment, AssessmentFile
 from app.models.recruiter import Recruiter
 from app.models.skill import SkillRequirement
+from app.schemas.competencies import CompetencyName, clean_competencies
 from app.services.drive import (
     FolderError,
     FolderInfo,
@@ -61,6 +62,9 @@ class CreateJobRequest(BaseModel):
     folder_link: str = Field(min_length=1)
     company: str | None = None
     skills: list[SkillInput] = Field(default_factory=list)
+    additional_competencies: list[CompetencyName] = Field(default_factory=list, max_length=20)
+
+    _clean_competencies = field_validator("additional_competencies")(clean_competencies)
 
 
 class UpdateJobRequest(BaseModel):
@@ -69,6 +73,12 @@ class UpdateJobRequest(BaseModel):
     folder_link: str | None = None
     company: str | None = None
     skills: list[SkillInput] | None = None
+    additional_competencies: list[CompetencyName] | None = Field(default=None, max_length=20)
+
+    @field_validator("additional_competencies")
+    @classmethod
+    def validate_competencies(cls, values):
+        return clean_competencies(values) if values is not None else None
 
 
 class SkillResponse(BaseModel):
@@ -96,6 +106,7 @@ class JobResponse(BaseModel):
     recruiter_email: str | None
     status: str
     skills: list[SkillResponse] = []
+    additional_competencies: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -163,6 +174,7 @@ async def create_job(
         company=body.company,
         status="draft",
         skills=[SkillRequirement(**skill.model_dump()) for skill in body.skills],
+        additional_competencies=body.additional_competencies,
     )
     db.add(job)
     await db.commit()
@@ -230,6 +242,8 @@ async def update_job(
 
     if body.skills is not None:
         await _replace_skills(job, body.skills, db)
+    if body.additional_competencies is not None:
+        job.additional_competencies = body.additional_competencies
 
     await db.commit()
     await db.refresh(job, attribute_names=["skills"])
@@ -380,4 +394,5 @@ def _job_to_response(job: Job, recruiter_email: str | None) -> JobResponse:
         recruiter_email=recruiter_email,
         status=job.status,
         skills=[SkillResponse.model_validate(s) for s in job.skills],
+        additional_competencies=job.additional_competencies,
     )

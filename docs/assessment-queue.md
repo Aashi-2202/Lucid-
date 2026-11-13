@@ -147,6 +147,14 @@ original blocks. Storage uses the previous terminal `screened` run state and
 analysis. Older intake-only snapshots remain `screened` and have no ranked
 results; start a new run to analyse them. No migration fabricates old scores.
 
+Additional competency reporting uses a separately frozen
+`summary_version=job-match-summary-v1`. Optional competency names are stored on
+the job by migration `0002_additional_competencies`, then copied to new snapshots.
+Findings and a quotation-free Job Match Summary live in analysis JSON. Export
+adds that summary as its final column. Old results have an empty summary cell;
+no old document is reanalysed during a read/export. See
+[competency reporting](additional-competencies.md).
+
 ## Recovery, isolation and bounds
 
 The existing unique active-slot constraint permits one active assessment across

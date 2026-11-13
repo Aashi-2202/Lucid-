@@ -8,11 +8,12 @@ export interface RunProgress {
   error_code:string|null; error_message:string|null; created_at:string; finished_at:string|null;
 }
 export interface FileOutcome {id:number;name:string;status:string;missing_skills:string[];error_code:string|null;error_message:string|null}
-export interface RankedResume {file_id:number;name:string;rank:number|null;score:number|null;complete:boolean}
+export interface RankedResume {file_id:number;name:string;rank:number|null;score:number|null;complete:boolean;job_match_summary?:string|null}
+export interface CompetencyFinding {name:string;status:"supporting_activity"|"listed"|"not_evidenced";reason:string;pages:number[]}
 export interface Evidence {page:number;block:number;section:string;text:string;context:string}
 export interface SkillResult {skill:string;assessment_method:string;mandatory:boolean;importance:number;required_evidence_level:number|null;evidence_level:number|null;relevance:number;evidence_credit:number;skill_credit:number;match_type:string;reason:string;evidence:Evidence[]}
-export interface FileDetail extends FileOutcome {document:{page_count:number;blocks:{page:number;original_text:string}[];analysis:{version?:string;score:number|null;complete:boolean;skills:SkillResult[];sections:Record<string,Evidence[]>;extracted_skills:string[]}|null}|null}
-export interface RunSnapshot {title:string;skills:{skill:string;mandatory:boolean;importance:number;required_evidence_level:number;assessment_method:string}[];folder_link:string;analysis_version:string|null}
+export interface FileDetail extends FileOutcome {document:{page_count:number;blocks:{page:number;original_text:string}[];analysis:{version?:string;score:number|null;complete:boolean;skills:SkillResult[];sections:Record<string,Evidence[]>;extracted_skills:string[];job_match_summary?:string|null;additional_competencies?:CompetencyFinding[]}|null}|null}
+export interface RunSnapshot {title:string;skills:{skill:string;mandatory:boolean;importance:number;required_evidence_level:number;assessment_method:string}[];folder_link:string;analysis_version:string|null;summary_version?:string|null;additional_competencies?:string[]}
 
 export const getEngine = () => apiFetch<{ready:boolean;message:string}>("/assessment-engine");
 export const listRuns = (jobId:number) => apiFetch<RunProgress[]>(`/jobs/${jobId}/assessments`);

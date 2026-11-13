@@ -31,7 +31,7 @@ async def main():
     try:
         async with migration_engine.begin() as connection:
             await connection.run_sync(upgrade_connection)
-        print("Database migration complete: 0001_password_accounts.")
+        print("Database migrations complete.")
     finally:
         await migration_engine.dispose()
 

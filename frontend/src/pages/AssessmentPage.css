@@ -23,6 +23,10 @@
 .assessment-skill-detail blockquote p { margin:0 0 .5rem; white-space:pre-wrap; }
 .assessment-skill-detail footer { color:var(--setup-muted); font-size:.875rem; }
 .assessment-resume-name, .assessment-source-text { overflow-wrap:anywhere; }
+.assessment-match-summary { border-bottom:1px solid #e5e7eb; padding:.5rem 0 1rem; line-height:1.6; overflow-wrap:anywhere; }
+.assessment-match-summary h3 { font-size:1rem; }
+.assessment-match-summary ul { padding-left:1.25rem; }
+.assessment-match-summary li + li { margin-top:.5rem; }
 .assessment-source-text { white-space:pre-wrap; }
 .assessment-history { margin-top:1.5rem; display:flex; flex-direction:column; gap:.75rem; }
 .assessment-history h3 { margin:0; font-size:1rem; }

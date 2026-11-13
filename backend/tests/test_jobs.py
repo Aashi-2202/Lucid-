@@ -80,6 +80,28 @@ class JobConfigurationTests(QueueTestCase):
         response = await self.client.patch("/jobs/2", json={"skills":[requirement()]})
         self.assertEqual(response.status_code, 403)
 
+    async def test_competencies_save_reopen_clear_and_remain_separate_from_skills(self):
+        response = await self.client.post("/jobs", json={"title":"Role", "description":"Work", "folder_link":"test_folder_12345678901234567890", "skills":[requirement()],
+            "additional_competencies":[" Communication ","communication","Learning Agility"]})
+        self.assertEqual(response.status_code,201,response.text)
+        job_id=response.json()["id"]
+        reopened=(await self.client.get(f"/jobs/{job_id}")).json()
+        self.assertEqual(reopened["additional_competencies"],["Communication","Learning Agility"])
+        self.assertEqual(len(reopened["skills"]),1)
+        unchanged=await self.client.patch(f"/jobs/{job_id}",json={"title":"Renamed"})
+        self.assertEqual(unchanged.json()["additional_competencies"],reopened["additional_competencies"])
+        cleared=await self.client.patch(f"/jobs/{job_id}",json={"additional_competencies":[]})
+        self.assertEqual(cleared.json()["additional_competencies"],[])
+
+    async def test_competency_validation_and_ownership_do_not_allow_partial_saves(self):
+        for values in ([" "],["DSA"],["x"*101],[str(i) for i in range(21)]):
+            response=await self.client.patch("/jobs/1",json={"title":"Must not save","additional_competencies":values})
+            self.assertEqual(response.status_code,422,response.text)
+        original=(await self.client.get("/jobs/1")).json()
+        self.assertEqual(original["title"],"Backend developer")
+        self.assertEqual(original["additional_competencies"],[])
+        self.assertEqual((await self.client.patch("/jobs/2",json={"additional_competencies":["Communication"]})).status_code,403)
+
     async def test_non_draft_jobs_cannot_be_reconfigured(self):
         async with self.sessions.begin() as db:
             job = await db.get(Job, 1)

@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 
-from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, func, Enum as SAEnum
+from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -25,6 +25,7 @@ class Job(Base):
     folder_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
     folder_pdf_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    additional_competencies: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     status: Mapped[str] = mapped_column(
         String(20), default="draft", server_default="draft"
     )

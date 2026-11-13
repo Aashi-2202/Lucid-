@@ -32,3 +32,6 @@ async def create_tables():
         columns = await conn.run_sync(lambda connection: {c["name"] for c in inspect(connection).get_columns("recruiters")})
         if not {"username", "password_hash"} <= columns:
             raise RuntimeError("Database upgrade required. Run python -m app.core.migrate from backend before starting Lucid.")
+        job_columns = await conn.run_sync(lambda connection: {c["name"] for c in inspect(connection).get_columns("jobs")})
+        if "additional_competencies" not in job_columns:
+            raise RuntimeError("Database upgrade required. Run python -m app.core.migrate from backend before starting Lucid.")

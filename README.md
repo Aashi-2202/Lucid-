@@ -22,7 +22,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate      # Windows
 pip install -r requirements.txt
-python -m app.core.migrate  # Initialize tables / upgrade existing account schema
+python -m app.core.migrate  # Initialize tables / apply account and competency upgrades
 python -m app.services.embeddings  # Download and check the pinned ONNX model once
 uvicorn app.main:app --reload --port 8000
 ```
@@ -86,6 +86,9 @@ workflow with the current stack and distinguish completed features from pending 
   and signed session tokens. Local accounts need no email; see
   [account setup and security details](docs/local-accounts.md).
 - Job drafts, Drive folder access checks, and configurable skill requirements.
+- Optional Additional competencies: communication, leadership/influence, problem
+  solving/critical thinking, learning agility, and custom nontechnical names.
+  These supply reporting signals only, without scores or exclusions.
 - Delete owned jobs and their saved assessments/results from the Jobs list after
   confirmation. Queued/running assessments block deletion; Drive originals stay unchanged.
 - All seven requirement controls are available before creating a job: suggested
@@ -102,6 +105,10 @@ workflow with the current stack and distinguish completed features from pending 
 - Section-based evidence categories, pinned Sentence Transformer ONNX passage
   retrieval, weighted evidence-fulfilment scores, tied ranks, source passages,
   and CSV export. Interview requirements remain unscored.
+- New assessments include a **Job Match Summary** CSV column: brief technical
+  evidence alignment/gaps and requested additional competencies, without resume
+  quotations. Older assessments keep their saved scores and have no fabricated
+  summaries. See [competency reporting](docs/additional-competencies.md).
 
 After saving job settings, scroll below the folder section and select
 **Initiate assessment**. The local backend needs `ASSESSMENT_WORKER_ENABLED=true`

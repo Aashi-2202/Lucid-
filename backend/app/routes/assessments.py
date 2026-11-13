@@ -22,6 +22,7 @@ from app.models.recruiter import Recruiter
 from app.schemas.assessments import AssessmentProgress, IntakeSnapshot, ResumeDocument, SkillSnapshot, StartAssessmentRequest
 from app.services.mandatory_gate import GateRequirement
 from app.services.analysis import ANALYSIS_VERSION
+from app.services.match_summary import SUMMARY_VERSION
 
 
 router = APIRouter(tags=["assessments"])
@@ -100,6 +101,8 @@ async def start_assessment(
             relevance_thresholds=[settings.relevance_bucket_none, settings.relevance_bucket_weak,
                                   settings.relevance_bucket_moderate, settings.relevance_bucket_strong],
             analysis_version=ANALYSIS_VERSION,
+            summary_version=SUMMARY_VERSION,
+            additional_competencies=job.additional_competencies,
             as_of_date=datetime.now(timezone.utc).date().isoformat(),
         )
     except (ValidationError, ValueError):
@@ -195,14 +198,15 @@ async def assessment_engine(recruiter: Recruiter = Depends(get_current_recruiter
 async def result_rows(run, db):
     files = (await db.execute(select(AssessmentFile.id, AssessmentFile.name,
         AssessmentFile.document["analysis"]["score"].as_float(),
-        AssessmentFile.document["analysis"]["complete"].as_boolean()).where(
+        AssessmentFile.document["analysis"]["complete"].as_boolean(),
+        AssessmentFile.document["analysis"]["job_match_summary"].as_string()).where(
         AssessmentFile.assessment_id == run.id,
         AssessmentFile.status == "ready_for_analysis",
         AssessmentFile.document["analysis"].as_string().is_not(None),
     ).order_by(AssessmentFile.position))).all()
     rows = []
-    for file_id, name, score, complete in files:
-        rows.append({"file_id": file_id, "name": name, "score": score, "complete": complete, "rank": None})
+    for file_id, name, score, complete, summary in files:
+        rows.append({"file_id": file_id, "name": name, "score": score, "complete": complete, "rank": None, "job_match_summary": summary})
     rows.sort(key=lambda row: (row["score"] is None, -(row["score"] or 0), row["file_id"]))
     last_score, rank = None, None
     for index, row in enumerate(rows):
@@ -235,9 +239,9 @@ async def export_results(assessment_id: UUID, recruiter: Recruiter = Depends(get
         raise HTTPException(409, "Wait until the assessment finishes before exporting final results")
     output = io.StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(["Rank", "Resume", "Resume match score", "Assessment complete"])
+    writer.writerow(["Rank", "Resume", "Resume match score", "Assessment complete", "Job Match Summary"])
     for row in await result_rows(run, db):
-        writer.writerow([row["rank"], csv_cell(row["name"]), row["score"], row["complete"]])
+        writer.writerow([row["rank"], csv_cell(row["name"]), row["score"], row["complete"], csv_cell(row["job_match_summary"])])
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=lucid-results.csv"})
 
 

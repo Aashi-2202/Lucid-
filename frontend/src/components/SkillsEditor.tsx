@@ -7,7 +7,7 @@ const COMMON_SKILLS = [
   "FastAPI", "Django", "C", "C++", "C#", ".NET", "PostgreSQL", "MongoDB",
   "Git", "Docker", "Kubernetes", "AWS", "Azure", "Google Cloud", "Excel",
   "Power BI", "Tableau", "Data analysis", "Machine learning", "Statistics",
-  "Communication", "Leadership", "Project management",
+  "DSA", "Data structures and algorithms", "Project management",
 ].sort((a, b) => a.localeCompare(b));
 
 const IMPORTANCE = ["", "Nice to have", "Low", "Moderate", "High", "Critical"];
