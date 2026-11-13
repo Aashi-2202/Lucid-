@@ -73,12 +73,17 @@ These categories describe resume claims, not verified competence.
   preserve source passages and support corrections/reassessment.
 - Retrieve relevant passages per requirement using explicit matches/aliases and
   semantic retrieval. Do not substitute one whole-resume similarity score.
-- Intended evidence credit: min(supported level / required level, 1). Skill credit
-  combines supported relevance and evidence credit; overall score is the weighted
+- Evidence credit: min(supported level / required level, 1). Under v2, skill credit
+  equals evidence credit; semantic similarity retrieves evidence without reducing
+  numerical credit. Overall score is the weighted
   mean across resume-assessed requirements, scaled to 100. This is a provisional
   scoring policy requiring labelled evaluation, not a probability of job success.
 - Absent optional skills receive zero credit. Undetermined evidence provisionally
   receives zero credit with its weight retained and assessment marked incomplete.
+- New runs use `resume-evidence-v2`; older frozen v1 runs retain their original
+  similarity-weighted scores and can resume without changing policy. Application
+  credit requires a skill-linked action/artifact; broad project summaries and
+  unrelated actions do not qualify. High similarity alone remains undetermined.
 - Preserve ties; rank all passing candidates together. Live ranking is provisional.
   All-interview configurations have no numerical ranking. Names, contact details
   and institution names do not contribute to skill scores.

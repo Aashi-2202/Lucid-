@@ -39,7 +39,7 @@ class IntakeSnapshot(FrozenModel):
     file_timeout_seconds: float = Field(ge=1, le=600)
     embedding_model: str
     relevance_thresholds: list[float] = Field(min_length=4, max_length=4)
-    analysis_version: Literal["resume-evidence-v1"] | None = None
+    analysis_version: Literal["resume-evidence-v1", "resume-evidence-v2"] | None = None
     as_of_date: str = "1970-01-01"
     embedding_revision: Literal["1110a243fdf4706b3f48f1d95db1a4f5529b4d41"] = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
     embedding_file: Literal["onnx/model_quint8_avx2.onnx"] = "onnx/model_quint8_avx2.onnx"

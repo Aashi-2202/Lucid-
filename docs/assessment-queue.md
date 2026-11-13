@@ -73,7 +73,11 @@ do not change this gate. Interview-assessed mandatory requirements use the same
 presence check. Exclusions retain missing requirements and status, without an
 extracted document or score. No embedding or evidence analysis runs for them.
 
-For passing resumes, the versioned `resume-evidence-v1` policy:
+New assessments use `resume-evidence-v2`. Saved v1 runs retain their original
+policy and scores, including when an interrupted v1 run resumes. No old scores
+are rewritten; initiate a new assessment to apply v2.
+
+For passing resumes, the current policy:
 
 - Detects explicit skills/coursework/education/projects/experience/internship
   sections and retains actual passages and entry context; missing facts are not invented.
@@ -84,25 +88,39 @@ For passing resumes, the versioned `resume-evidence-v1` policy:
   spanning at least six months. A heading alone does not elevate a skill.
 - Uses dated entry context for duration; year-only, reversed or future intervals
   cannot establish six months. `Present` uses the snapshot's frozen UTC date.
-- Marks moderate semantic-only evidence undetermined with zero provisional
-  credit and an incomplete assessment. Strong semantic application can support a
-  category. These thresholds are initial heuristics, not validated probabilities.
+- Splits independent clauses and requires a concrete action/artifact link to
+  the named skill or approved alias before assigning application-level credit.
+  General hands-on-project summaries and unrelated action verbs do not establish
+  applied evidence. Specific ongoing project work may qualify; plans do not.
+- Marks semantic-only associations undetermined with zero provisional credit
+  unless an explicit name/approved alias establishes the skill link. High cosine
+  similarity alone cannot establish a language/tool or application level.
 - Omits interview requirements from all numeric credit and score denominators.
 
-Default cosine thresholds 0.30, 0.50, 0.65 and 0.80 map relevance to
-0, 0.25, 0.5, 0.75 and 1. Explicit matches retain at least 0.25 relevance credit.
-Cosine similarity is never presented as confidence or proficiency.
+Cosine similarity is used for retrieval and ordering equally supported passages,
+not as a score multiplier. V2 queries use the skill and optional requirement
+description rather than appending generic job-title/description text. Existing
+thresholds remain diagnostic/retrieval settings, not confidence or proficiency.
 
 ```text
 Evidence credit = min(supported evidence level / required evidence level, 1)
-Skill credit = relevance bucket × evidence credit
+Skill credit = evidence credit
 Score = 100 × sum(importance × skill credit) / sum(resume-assessed importance)
 ```
 
 Absent optional skills and undetermined evidence retain their weights with zero
 credit. Scores round to two decimal places before ranking. Equal scores share a
 competition rank. All passing resumes are ranked together; early results are
-provisional. All-interview configurations have no numeric score or rank.
+provisional. Completed runs with undetermined evidence remain flagged provisional
+and their rows are marked Needs review. All-interview configurations have no
+numeric score or rank. Missing mandatory presence still excludes before scoring;
+meeting the required evidence level is a scoring target, not a new eligibility gate.
+
+V1 compatibility: the prior relevance bucket multiplied evidence credit, and
+strong semantic matches could establish an application category. That behavior
+is retained only for frozen `resume-evidence-v1` snapshots. V2 UI details show
+requirement credit instead of a relevance multiplier. A score of 100 means the
+configured resume-evidence targets were met, not verified candidate competence.
 
 ## API and compatibility
 
@@ -161,7 +179,8 @@ through a dedicated Proactor loop. Existing asyncpg URLs use `?ssl=require`.
 
 ## Verification and limits
 
-121 backend tests passed with warnings treated as errors. They cover the existing
+The initial assessment implementation passed 121 backend tests with warnings
+treated as errors. They cover the existing
 queue/gate controls and synthetic labelled rubric cases, score calculation,
 interview exclusion, unknown evidence, tie handling, exports, ownership and old
 snapshot compatibility. Model downloads are not required for this test suite.
@@ -171,6 +190,11 @@ HTTP API and Neon development persistence: 5 processed, 4 analysed, 1 OCR failur
 with repeated-start and CSV checks. The user also launched their configured job
 through Chrome: 1 analysed, 3 mandatory exclusions, 1 failure. See the
 [live report](live-verification-2026-11-12.md).
+
+The subsequent v2 scoring change passed 154 backend tests and a fresh live
+HTTP/worker/Drive/ONNX/Neon assessment. See the
+[scoring verification report](scoring-verification-2026-11-13.md) for outcomes,
+legacy replay checks and product limitations.
 
 Manual parser corrections/reassessment, calibration on a manually labelled real
 resume dataset, broader layout/negation coverage, and hosted memory/cold-start

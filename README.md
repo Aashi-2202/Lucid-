@@ -100,7 +100,7 @@ workflow with the current stack and distinguish completed features from pending 
 - Initiate assessments from the saved job, recheck folder access, follow live
   progress, reopen previous runs, and view separate assessed/excluded/failed lists.
 - Section-based evidence categories, pinned Sentence Transformer ONNX passage
-  retrieval, bucketed relevance, weighted scores, tied ranks, source passages,
+  retrieval, weighted evidence-fulfilment scores, tied ranks, source passages,
   and CSV export. Interview requirements remain unscored.
 
 After saving job settings, scroll below the folder section and select

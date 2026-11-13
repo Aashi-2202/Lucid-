@@ -21,6 +21,7 @@ from app.models.job import Job
 from app.models.recruiter import Recruiter
 from app.schemas.assessments import AssessmentProgress, IntakeSnapshot, ResumeDocument, SkillSnapshot, StartAssessmentRequest
 from app.services.mandatory_gate import GateRequirement
+from app.services.analysis import ANALYSIS_VERSION
 
 
 router = APIRouter(tags=["assessments"])
@@ -98,7 +99,7 @@ async def start_assessment(
             embedding_model=settings.embedding_model,
             relevance_thresholds=[settings.relevance_bucket_none, settings.relevance_bucket_weak,
                                   settings.relevance_bucket_moderate, settings.relevance_bucket_strong],
-            analysis_version="resume-evidence-v1",
+            analysis_version=ANALYSIS_VERSION,
             as_of_date=datetime.now(timezone.utc).date().isoformat(),
         )
     except (ValidationError, ValueError):
@@ -217,7 +218,8 @@ async def result_rows(run, db):
 async def get_results(assessment_id: UUID, recruiter: Recruiter = Depends(get_current_recruiter),
                       db: AsyncSession = Depends(get_db)):
     run = await owned_run(assessment_id, recruiter.id, db)
-    return {"provisional": run.status in ("queued", "running"), "rows": await result_rows(run, db)}
+    rows = await result_rows(run, db)
+    return {"provisional": run.status in ("queued", "running") or any(not row["complete"] for row in rows), "rows": rows}
 
 
 def csv_cell(value):

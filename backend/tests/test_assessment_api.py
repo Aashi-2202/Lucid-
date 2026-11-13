@@ -87,6 +87,7 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual(response.json()["title"], "Backend developer")
         self.assertEqual(response.json()["skills"][0]["importance"], 5)
         self.assertIn("pdf_limits", response.json())
+        self.assertEqual(response.json()["analysis_version"], "resume-evidence-v2")
 
     async def test_progress_counts_and_excluded_file_privacy(self):
         run_id = (await self.start()).json()["id"]
@@ -151,7 +152,7 @@ class AssessmentApiTests(QueueTestCase):
         for _ in range(2):
             claim=await claim_next(self.sessions)
             doc=document("Projects\nBuilt Python services.")
-            doc=doc.model_copy(update={"analysis":analyse(doc,snapshot(),encoder=exact_encoder)})
+            doc=doc.model_copy(update={"analysis":analyse(doc,snapshot().model_copy(update={"analysis_version":"resume-evidence-v2"}),encoder=exact_encoder)})
             await save_outcome(self.sessions,claim,Ready(document=doc))
         claim=await claim_next(self.sessions)
         await save_outcome(self.sessions,claim,Excluded(missing_skills=["Python"]))
@@ -184,6 +185,26 @@ class AssessmentApiTests(QueueTestCase):
         self.assertEqual(csv_cell("=HYPERLINK(test)"),"'=HYPERLINK(test)")
         self.assertEqual(csv_cell("   +test"),"'   +test")
         self.assertEqual(csv_cell("resume.pdf"),"resume.pdf")
+
+    async def test_terminal_undetermined_evidence_stays_provisional(self):
+        from app.schemas.assessments import Ready
+        from app.services.analysis import analyse
+        from test_analysis import document
+        configured=await self.client.patch('/jobs/1',headers=self.headers,json={"skills":[
+            {"skill":"Python","mandatory":True,"importance":3,"required_evidence_level":3},
+            {"skill":"SQL","mandatory":False,"importance":3,"required_evidence_level":3}]})
+        self.assertEqual(configured.status_code,200)
+        run_id=(await self.start()).json()["id"]
+        claim=await claim_next(self.sessions)
+        await save_outcome(self.sessions,claim,discovery("a"))
+        claim=await claim_next(self.sessions)
+        doc=document("Projects\nDeveloped Python server endpoints with FastAPI.")
+        doc=doc.model_copy(update={"analysis":analyse(doc,claim.request.snapshot,encoder=lambda texts:[[1.,0.],[1.,0.],[.9,(1-.9**2)**.5]])})
+        await save_outcome(self.sessions,claim,Ready(document=doc))
+        result=(await self.client.get(f"/assessments/{run_id}/results",headers=self.headers)).json()
+        self.assertTrue(result["provisional"])
+        self.assertFalse(result["rows"][0]["complete"])
+        self.assertEqual(result["rows"][0]["score"],50)
 
     async def test_old_intake_run_does_not_claim_ranked_results(self):
         run_id=await self.enqueue()

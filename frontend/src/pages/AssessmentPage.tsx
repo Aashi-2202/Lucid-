@@ -14,6 +14,7 @@ export default function AssessmentPage({assessmentId,onBack}:Props) {
   const [snapshotError,setSnapshotError]=useState(false);
   const [files,setFiles]=useState<FileOutcome[]>([]);
   const [results,setResults]=useState<RankedResume[]>([]);
+  const [provisional,setProvisional]=useState(false);
   const [error,setError]=useState("");
   const [attempt,setAttempt]=useState(0);
   const [updated,setUpdated]=useState("");
@@ -35,7 +36,7 @@ export default function AssessmentPage({assessmentId,onBack}:Props) {
       try {
         const [next,outcomes,ranked]=await Promise.all([getRun(assessmentId),getFiles(assessmentId),getResults(assessmentId)]);
         if(cancelled)return;
-        setRun(next);setFiles(outcomes);setResults(ranked.rows);setError("");setUpdated(new Date().toLocaleTimeString());failures=0;
+        setRun(next);setFiles(outcomes);setResults(ranked.rows);setProvisional(ranked.provisional);setError("");setUpdated(new Date().toLocaleTimeString());failures=0;
         if(active(next))timer=setTimeout(refresh,2500);
       }catch(err){
         if(cancelled)return;
@@ -74,8 +75,11 @@ export default function AssessmentPage({assessmentId,onBack}:Props) {
         <p className="setup-help">{updated?`Last updated ${updated}. `:""}{busy?"You can leave this page and reopen the saved assessment.":"Results are saved."}</p>
       </section>
       <section className="setup-section" aria-labelledby="results-title">
-        <div className="assessment-result-heading"><h2 id="results-title">{busy?"Provisional results":"Results"}</h2><button className="setup-secondary" onClick={exportCsv} disabled={busy||exporting||results.length===0} aria-busy={exporting}>Download results</button></div>
+        <div className="assessment-result-heading"><h2 id="results-title">{busy||provisional?"Provisional results":"Results"}</h2><button className="setup-secondary" onClick={exportCsv} disabled={busy||exporting||results.length===0} aria-busy={exporting}>Download results</button></div>
         <p className="setup-help">Automated scores describe resume evidence. Review the supporting passages before using results. Equal scores share a rank.</p>
+        {snapshot?.analysis_version==="resume-evidence-v2"&&<p className="setup-help">Scores reflect how well the resume evidence meets each requirement, using the importance you set. Similarity only helps find evidence.</p>}
+        {snapshot?.analysis_version==="resume-evidence-v1"&&<p className="setup-help">This saved assessment uses the older similarity-weighted scoring policy. Start a new assessment to use evidence-fulfilment scoring.</p>}
+        {!busy&&provisional&&<p className="setup-help">Some evidence is undetermined. Scores remain provisional; review resumes marked Needs review.</p>}
         <p className="setup-help">Download results as a spreadsheet-compatible CSV file.</p>
         {snapshot?.skills.every(skill=>skill.assessment_method==="interview")&&<p className="setup-help">All requirements are interview-assessed. Passing resumes have no numerical score or rank.</p>}
         <div className="assessment-filters" role="group" aria-label="Result categories">
@@ -91,7 +95,7 @@ export default function AssessmentPage({assessmentId,onBack}:Props) {
         {detailBusy&&<p role="status">Loading resume details…</p>}
         {detailError&&<p role="alert" className="setup-error">{detailError}</p>}
         {detail?.document?.analysis&&<><h3 className="assessment-resume-name">{detail.name}</h3><p className="setup-help">Explicitly found requirements: {detail.document.analysis.extracted_skills.join(", ")||"None"}</p>
-          {detail.document.analysis.skills.map((skill,index)=><details className="assessment-skill-detail" key={index}><summary>{skill.skill} · {skill.assessment_method==="interview"?"Interview, unscored":skill.evidence_level?`Evidence ${skill.evidence_level}/5 — ${LEVELS[skill.evidence_level]}`:skill.match_type==="absent"?"Not found":"Undetermined"}</summary><p>{skill.reason}</p><p className="setup-help">Match: {skill.match_type==="semantic"?"semantic association":skill.match_type==="explicit"?"explicit name or approved alias":"not found"}</p>{skill.assessment_method==="resume"&&<p className="setup-help">Required evidence {skill.required_evidence_level}/5 · Importance {skill.importance}/5 · Relevance credit {skill.relevance} · Skill credit {skill.skill_credit.toFixed(3)}</p>}{skill.evidence.map((source,i)=><blockquote key={i}><p>{source.text}</p><footer>Page {source.page} · {source.section}{source.context?` · ${source.context}`:""}</footer></blockquote>)}</details>)}
+          {detail.document.analysis.skills.map((skill,index)=><details className="assessment-skill-detail" key={index}><summary>{skill.skill} · {skill.assessment_method==="interview"?"Interview, unscored":skill.evidence_level?`Evidence ${skill.evidence_level}/5 — ${LEVELS[skill.evidence_level]}`:skill.match_type==="absent"?"Not found":"Undetermined"}</summary><p>{skill.reason}</p><p className="setup-help">Match: {skill.match_type==="semantic"?"semantic association":skill.match_type==="explicit"?"explicit name or approved alias":"not found"}</p>{skill.assessment_method==="resume"&&<p className="setup-help">Required evidence {skill.required_evidence_level}/5 · Importance {skill.importance}/5 · {detail.document?.analysis?.version==="resume-evidence-v2"?`Requirement credit ${(skill.evidence_credit*100).toFixed(1)}%`:`Relevance credit ${skill.relevance}`} · Skill credit {skill.skill_credit.toFixed(3)}</p>}{skill.evidence.map((source,i)=><blockquote key={i}><p>{source.text}</p><footer>Page {source.page} · {source.section}{source.context?` · ${source.context}`:""}</footer></blockquote>)}</details>)}
           {Object.entries(detail.document.analysis.sections).filter(([,entries])=>entries.length).map(([section,entries])=><details className="assessment-skill-detail" key={section}><summary>Extracted {section}</summary>{entries.map((source,index)=><p key={index}>{source.text} <small>(page {source.page})</small></p>)}</details>)}
           <details className="assessment-skill-detail"><summary>Extracted PDF text</summary>{detail.document.blocks.map((block,index)=><p key={index} className="assessment-source-text">Page {block.page}: {block.original_text}</p>)}</details>
         </>}
